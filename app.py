@@ -4,8 +4,8 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v9.1 - DIAGNÓSTICO", layout="wide")
-st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
+st.set_page_config(page_title="BUNKER ALPHA v11.0 - DUAL CORE", layout="wide")
+st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha (DUAL)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
@@ -17,28 +17,16 @@ with st.sidebar:
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ SELECCIONA TU ARMA")
+    st.header("⚙️ MOTOR TÁCTICO")
     
-    # --- DIAGNÓSTICO EN TIEMPO REAL ---
-    modelos_disponibles = []
-    if google_key:
-        try:
-            genai.configure(api_key=google_key)
-            # Listamos TODOS los modelos que tu cuenta permite
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    modelos_disponibles.append(m.name)
-        except Exception as e:
-            st.error(f"Error conectando con Google: {e}")
+    # SELECTOR DE PROVEEDOR PARA EL SCOUT (POR SI FALLA GOOGLE)
+    scout_provider = st.radio(
+        "Cerebro del Scout:",
+        ["Google Gemini (Original)", "OpenAI (Emergencia)"],
+        index=0
+    )
     
-    if modelos_disponibles:
-        # El usuario elige de la lista REAL
-        modelo_seleccionado = st.selectbox("Modelos Habilitados:", modelos_disponibles, index=0)
-        st.success(f"✅ Conectado a: {modelo_seleccionado}")
-    else:
-        st.warning("⚠️ Pon tu Google API Key para cargar los modelos.")
-        modelo_seleccionado = "gemini-pro" # Fallback por si acaso
-
+    st.success("SISTEMA: V11.0 (HÍBRIDO)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- BITÁCORA ---
@@ -83,10 +71,9 @@ Input Obligatorio: Marcador, Minuto, AP, SOT, Córners, Tarjetas, Cuota.
 - VETO Incentivo: Dominante gana por 2+ goles (salvo xG rival > 1.0).
 - SWEET SPOT: Cuota > 2.10 es VALOR PURO (APROBAR). Si < 1.80 (ESPERAR).
 
-⛔ PROHIBICIONES ABSOLUTAS (CRÍTICO):
-- JAMÁS SUGERIR "ASIAN HANDICAPS" (Hándicap Asiático).
-- JAMÁS SUGERIR "DNB" (Draw No Bet).
-- Solo mercados LÍQUIDOS: Ganador (1X2), Goles (Over/Under), Córners, Ambos Marcan.
+⛔ PROHIBICIONES ABSOLUTAS:
+- JAMÁS SUGERIR "ASIAN HANDICAPS".
+- Solo mercados: Ganador (1X2), Goles (Over/Under), Córners.
 """
 
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
@@ -131,28 +118,48 @@ with st.form(key='bunker_form'):
 if submit_button:
     if not raw_data:
         st.warning("⚠️ Sin datos.")
-    elif not google_key:
-        st.error("❌ Falta Google Key.")
     else:
         scout_resp = ""
         auditor_resp = ""
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (CON MODELO SELECCIONADO)
+        # 1. SCOUT (DUAL O EMERGENCIA)
         with col1:
             st.subheader("🦅 Scout")
-            try:
-                genai.configure(api_key=google_key)
-                # Usamos el modelo que elegiste en la lista
-                model_scout = genai.GenerativeModel(modelo_seleccionado)
-                res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
-                scout_resp = res_scout.text
-                st.info(scout_resp)
-            except Exception as e: 
-                st.error(f"Error Scout: {str(e)}")
-                st.warning("👉 Prueba eligiendo otro modelo de la lista izquierda.")
+            
+            # --- RUTA A: GOOGLE GEMINI (IDEAL) ---
+            if scout_provider == "Google Gemini (Original)":
+                if not google_key:
+                    st.error("❌ Falta Google Key.")
+                else:
+                    try:
+                        genai.configure(api_key=google_key)
+                        # Usamos el modelo estándar más compatible
+                        model_scout = genai.GenerativeModel('gemini-1.5-flash')
+                        res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
+                        scout_resp = res_scout.text
+                        st.info(scout_resp)
+                    except Exception as e:
+                        st.error(f"Error Gemini: {str(e)}")
+                        st.warning("💡 Sugerencia: Crea una API Key nueva en un PROYECTO NUEVO de Google AI Studio.")
+            
+            # --- RUTA B: OPENAI (EMERGENCIA) ---
+            else:
+                if not openai_key:
+                    st.error("❌ Falta OpenAI Key.")
+                else:
+                    try:
+                        client = openai.OpenAI(api_key=openai_key)
+                        res_scout = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
+                        )
+                        scout_resp = res_scout.choices[0].message.content
+                        st.info(f"(Vía OpenAI): {scout_resp}")
+                    except Exception as e:
+                        st.error(f"Error OpenAI: {str(e)}")
 
-        # 2. AUDITOR (OpenAI)
+        # 2. AUDITOR (SIEMPRE OPENAI - ESTABILIDAD)
         with col2:
             st.subheader("🛡️ Auditor")
             if not openai_key:
@@ -171,18 +178,37 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_resp = "ERROR."
 
-        # 3. JUEZ
+        # 3. JUEZ (INTENTA GOOGLE, SI FALLA USA OPENAI)
         st.markdown("---")
         st.header("⚖️ SENTENCIA")
-        if scout_resp and "ERROR" not in auditor_resp:
-            try:
-                model_juez = genai.GenerativeModel(modelo_seleccionado)
-                prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
-                res_juez = model_juez.generate_content(prompt_final)
-                
-                juez_texto = res_juez.text
-                st.markdown(f"### {juez_texto}")
+        if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
+            juez_texto = ""
+            # Intento Juez Google
+            if google_key and scout_provider == "Google Gemini (Original)":
+                try:
+                    model_juez = genai.GenerativeModel('gemini-1.5-flash')
+                    prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                    res_juez = model_juez.generate_content(prompt_final)
+                    juez_texto = res_juez.text
+                except:
+                    juez_texto = "" # Falló Google, pasamos a OpenAI
+            
+            # Intento Juez OpenAI (Fallback o si está seleccionado)
+            if not juez_texto and openai_key:
+                try:
+                    client = openai.OpenAI(api_key=openai_key)
+                    prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                    res_juez = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "system", "content": "ERES EL JUEZ SUPREMO."}, {"role": "user", "content": prompt_final}]
+                    )
+                    juez_texto = res_juez.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Error Juez: {str(e)}")
 
+            if juez_texto:
+                st.markdown(f"### {juez_texto}")
+                
                 # Bitácora
                 veredicto = "⚪"
                 if "🔴" in juez_texto: veredicto = "🔴 NO OPERAR"
@@ -195,5 +221,3 @@ if submit_button:
                     "sentencia": juez_texto,
                     "motivo": "Ver detalle."
                 })
-            except Exception as e:
-                st.error(f"Error Juez: {str(e)}")
