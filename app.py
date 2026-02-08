@@ -291,4 +291,90 @@ if submit_button:
             st.subheader("🛡️ Auditor (OpenAI)")
             if not openai_key:
                 st.warning("⚠️ Sin OpenAI Key.")
-                auditor_resp = "NO DISPON
+                auditor_resp = "NO DISPONIBLE."
+            else:
+                try:
+                    client = openai.OpenAI(api_key=openai_key)
+                    res_auditor = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
+                    )
+                    auditor_resp = res_auditor.choices[0].message.content
+                    st.success(auditor_resp)
+                except Exception as e: 
+                    st.error(f"Error OpenAI: {str(e)}")
+                    auditor_resp = "ERROR."
+
+        # ==========================================
+        # 3. JUECES (SOLO SI HAY DATOS)
+        # ==========================================
+        if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
+            st.markdown("---")
+            
+            # --- JUEZ 1 (SISTEMA HYDRA - INDEPENDIENTE) ---
+            st.header("👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI HYDRA)")
+            
+            if modelo_titular:
+                texto_j1, status_j1, tipo_j1, exito_j1 = generar_respuesta_blindada(
+                    google_key, modelo_titular, 
+                    JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                )
+                
+                if exito_j1:
+                    juez1_resp = texto_j1
+                    if tipo_j1 == "success": st.caption(status_j1)
+                    else: st.warning(status_j1)
+                    st.info(juez1_resp)
+                else:
+                    juez1_resp = "NO DISPONIBLE"
+                    st.error(texto_j1)
+            else:
+                juez1_resp = "NO DISPONIBLE"
+
+            st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
+
+            # --- JUEZ 2 (OPENAI - SUPREMO) ---
+            st.header("🏛️ JUEZ 2: CORTE SUPREMA (OPENAI)")
+            try:
+                if openai_key:
+                    client = openai.OpenAI(api_key=openai_key)
+                    expediente_completo = f"""
+                    SCOUT (Ataque): {scout_resp}
+                    AUDITOR (Riesgo): {auditor_resp}
+                    JUEZ PRELIMINAR (Opinión): {juez1_resp}
+                    """
+                    
+                    res_supremo = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": "ERES LA CORTE SUPREMA. REVISA EL EXPEDIENTE COMPLETO."}, 
+                            {"role": "user", "content": JUEZ_SUPREMO_PROMPT + "\n\nEXPEDIENTE:\n" + expediente_completo}
+                        ]
+                    )
+                    texto_supremo = res_supremo.choices[0].message.content
+                    
+                    # VISUALIZACIÓN FINAL
+                    if "🔴" in texto_supremo:
+                        st.error(texto_supremo)
+                    elif "🟢" in texto_supremo:
+                        st.success(texto_supremo)
+                    else:
+                        st.warning(texto_supremo)
+
+                    # HORA QUITO (UTC-5)
+                    hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
+
+                    veredicto = "⚪"
+                    if "🔴" in texto_supremo: veredicto = "🔴 NO OPERAR"
+                    elif "🟡" in texto_supremo: veredicto = "🟡 ESPERAR"
+                    elif "🟢" in texto_supremo: veredicto = "🟢 DISPARAR"
+                    
+                    st.session_state['bitacora'].append({
+                        "hora": hora_quito,
+                        "partido": nombre_partido_detectado,
+                        "veredicto": veredicto,
+                        "sentencia": texto_supremo,
+                        "motivo": "Revisar expediente completo."
+                    })
+            except Exception as e:
+                st.error(f"Error Corte Suprema: {str(e)}")
