@@ -2,85 +2,85 @@ import streamlit as st
 import openai
 import google.generativeai as genai
 
-st.set_page_config(page_title="BUNKER ALPHA v2.0 - QUANT TRADER", layout="wide")
-st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Deportiva")
+st.set_page_config(page_title="BUNKER ALPHA v2.1 - SNIPER", layout="wide")
+st.title("🦅 BUNKER ALPHA: Modo Sniper")
 
 with st.sidebar:
-    st.header("🔑 Llaves del Búnker")
+    st.header("🔑 Llaves de Acceso")
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
     google_key = st.text_input("Google API Key (Scout)", type="password")
     st.markdown("---")
-    st.info("NIVEL 1 ($70-$149): Stake P1 $0.50")
+    st.info("🎯 ESTRATEGIA: Crecimiento Compuesto (EV+)")
 
-# --- LA CONSTITUCIÓN ALPHA (EL CEREBRO) ---
+# --- CONSTITUCIÓN ALPHA v2.1 (Gobernanza Madre + Modo Sniper) ---
 CONSTITUCION_ALPHA = """
-[ROL] Socio Operativo / Senior Sports Trader. IQ 228. Objetivo: $6,000.
-[FILTROS ALPHA]
-- Asedio: Ritmo AP >= 1.2/min.
-- Excepción Asedio: Ritmo 0.90 si +8 córners antes min 60 o xG > 2.0.
-- Regla 1.50/6 (Min >70): Requiere AP > 1.50 Y SOT >= 6 combinados.
-- Anti-Ravenna: No entrar si Remates Fuera > 2x SOT.
-- Ligas: Solo Ligas A, B y Pro. Prohibido Regionales/Juveniles en PRU.
-- 1T: Solo si xG > 1.0 o +10 AP en últimos 15 min.
+[ROL] Actúas en un Comité de Decisión de Trading con IQ 228. Tu objetivo no es acertar goles, es identificar operaciones repetibles EV+.
+
+[REGLAS SNIPER & FILTROS]
+1. Ritmo Alpha: AP >= 1.2/min (Mínimo).
+2. MODO SNIPER: Si AP/Min >= 1.5 Y SOT >= 4 en los últimos 15 min. Etiquetar como "🟢 SNIPER DETECTADO".
+3. REGLAS INFLEXIBLES: Anti-Ravenna (Ligas Pro únicamente), Puntería (Remates Fuera < 2x SOT), Marcador (No entrar si diferencia > 2 goles, salvo asedio 2.0 AP/min).
+
+[FILOSOFÍA DEL COMITÉ]
+- Proceso > Resultado.
+- Timing de mercado obligatorio.
+- El desacuerdo entre agentes es información, no error.
 """
 
-# --- INSTRUCCIONES ESPECÍFICAS POR AGENTE ---
+# Instrucción específica para el Scout
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
-TU MISIÓN: Scout de Oportunidad. Detecta momentum y fuego.
-FORMATO DE RESPUESTA:
-1. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
-2. MERCADO: [Tipo de apuesta y Cuota Objetivo 1.90-2.10]
-3. ANÁLISIS TÉCNICO: [AP/min, SOT, xG, Filtros Alpha aplicados]
-4. MONITOREO: [Minuto de Ignición / Re-evaluación]
+TU ROL: Scout de Oportunidad (Agresivo). Busca presión y momentum.
+FORMATO DE SALIDA (ESTRICTO):
+1. Oportunidad detectada: [SÍ/NO/🟢 SNIPER]
+2. Fundamento principal: [1 línea de alto impacto]
+3. Nivel de urgencia: [Baja/Media/Alta]
+---
+🔍 ANÁLISIS TÉCNICO: [Máximo 3 puntos clave]
 """
 
+# Instrucción específica para el Auditor
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
-TU MISIÓN: Auditor de Riesgo y Gestión de Capital (Manifiesto 2.0).
-FORMATO DE RESPUESTA:
-1. Veredicto de Riesgo: [Aprobado/Vetado]
-2. Gestión: [Fase del Ciclo: P1, P2, P3 o Rescate/PRU]
-3. Riesgo Crítico: [Por qué NO entrar o qué factor vigilar]
+TU ROL: Auditor de Riesgo (Conservador). Evalúa contexto y gestión de capital.
+FORMATO DE SALIDA (ESTRICTO):
+1. Veredicto: [SÍ/NO/ESPERAR]
+2. Riesgo clave: [1 línea de por qué NO operar]
+3. Daño potencial: [Bajo/Medio/Alto]
+---
+🛡️ GESTIÓN: [Define si es P1, P2, P3 o PRU basado en el riesgo]
 """
 
-raw_data = st.text_area("📥 PEGA EL RAW DATA AQUÍ:", height=200, placeholder="Pega estadísticas de Flashscore, Sofascore o Stake aquí...")
+raw_data = st.text_area("📥 PEGA EL RAW DATA AQUÍ:", height=200, placeholder="Pega las estadísticas del partido aquí...")
 
-if st.button("⚡ ANALIZAR COMITÉ ALPHA"):
+if st.button("⚡ EJECUTAR ANÁLISIS ALPHA"):
     if not google_key:
         st.error("❌ Falta la llave del Scout (Google).")
-    elif not raw_data:
-        st.warning("⚠️ Sin datos no hay análisis.")
     else:
         col1, col2 = st.columns(2)
-
-        # 🦅 SCOUT (GEMINI) - EJECUCIÓN CON IQ 228
+        
         with col1:
-            st.subheader("🦅 Scout (Socio Operativo)")
+            st.subheader("🦅 Scout (Oportunidad)")
             try:
                 genai.configure(api_key=google_key)
                 model = genai.GenerativeModel('gemini-flash-latest')
-                response = model.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
+                response = model.generate_content(SCOUT_PROMPT + "\nDATOS DEL PARTIDO:\n" + raw_data)
                 st.success(response.text)
             except Exception as e:
-                st.error(f"Error Scout: {str(e)}")
+                st.error(f"Error en Scout: {str(e)}")
 
-        # 🛡️ AUDITOR (CHATGPT) - GESTIÓN DE CAPITAL
         with col2:
-            st.subheader("🛡️ Auditor (Guardián del Bank)")
+            st.subheader("🛡️ Auditor (Riesgo)")
             if not openai_key:
-                st.warning("⚠️ Auditor en espera de saldo ($5).")
+                st.info("⌛ Esperando saldo para activar Auditoría...")
             else:
                 try:
                     client = openai.OpenAI(api_key=openai_key)
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": AUDITOR_PROMPT},
-                            {"role": "user", "content": raw_data}
-                        ]
+                        messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     st.info(res.choices[0].message.content)
                 except Exception as e:
-                    st.error("❌ Error de saldo o conexión en Auditor.")
+                    st.error("❌ Error de saldo o conexión en OpenAI.")
 
 st.markdown("---")
-st.caption("THE BOSS: Sistema validado. Disciplina matemática sobre emoción.")
+st.caption("The Boss: Ejecución de élite. Proceso > Resultado.")
