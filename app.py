@@ -2,25 +2,78 @@ import streamlit as st
 import openai
 import google.generativeai as genai
 from datetime import datetime, timedelta
+import time
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v16.1 - MIRROR", layout="wide")
-st.title("🦅 BUNKER ALPHA: Corte Suprema (MODO ESPEJO)")
+st.set_page_config(page_title="BUNKER ALPHA v17.0 - HYDRA", layout="wide")
+st.title("🦅 BUNKER ALPHA: Corte Suprema (SISTEMA HYDRA)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
 
+# --- NÚCLEO HYDRA: SISTEMA DE ROTACIÓN AUTOMÁTICA ---
+def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
+    """
+    Intenta ejecutar la orden con el modelo Titular.
+    Si falla (por cuota o error), activa automáticamente a los Suplentes.
+    Retorna: (Texto Respuesta, Mensaje de Estado, Éxito Boolean)
+    """
+    genai.configure(api_key=google_key)
+    
+    # EJÉRCITO DE RESERVA (Orden de Batalla)
+    # 1. Tu Titular
+    # 2. El Tanque (Flash 1.5 - 1500 usos)
+    # 3. El Cerebro (Pro 1.5)
+    # 4. El Veterano (Pro 1.0)
+    
+    lista_batalla = [modelo_preferido]
+    reservas = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
+    
+    # Añadimos reservas asegurando que no se repita el titular
+    for r in reservas:
+        if r != modelo_preferido:
+            lista_batalla.append(r)
+            
+    errores_log = []
+    
+    for modelo_actual in lista_batalla:
+        try:
+            # INTENTO DE DISPARO
+            model_instance = genai.GenerativeModel(modelo_actual)
+            response = model_instance.generate_content(prompt)
+            
+            # SI LLEGAMOS AQUÍ, FUE UN ÉXITO
+            texto = response.text
+            
+            # Diagnóstico
+            if modelo_actual == modelo_preferido:
+                status = f"✅ Ejecutado por TITULAR ({modelo_actual})"
+                tipo_aviso = "success"
+            else:
+                status = f"⚠️ TITULAR CAÍDO. Rescatado por SUPLENTE ({modelo_actual})"
+                tipo_aviso = "warning"
+                
+            return texto, status, tipo_aviso, True
+            
+        except Exception as e:
+            # SI FALLA, REGISTRAMOS Y PASAMOS AL SIGUIENTE
+            errores_log.append(f"{modelo_actual}: {str(e)}")
+            continue # Salta al siguiente soldado
+            
+    # SI SALIMOS DEL BUCLE, TODOS HAN MUERTO
+    return f"Fallo Total del Sistema. Reporte: {errores_log}", "❌ ERROR CRÍTICO", "error", False
+
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("🔑 Llaves de Mando")
     openai_key = st.text_input("OpenAI API Key (Auditor & Juez Supremo)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez 1)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ SELECCIÓN DE ARMA (GEMINI)")
+    st.header("⚙️ SELECCIÓN DE ARMA (TITULAR)")
     
-    # --- LÓGICA DE DETECCIÓN ---
-    modelo_google_seleccionado = None
+    modelo_titular = None
     
     if google_key:
         try:
@@ -31,36 +84,34 @@ with st.sidebar:
                     lista_modelos.append(m.name)
             
             if lista_modelos:
-                st.success(f"✅ Google Conectado ({len(lista_modelos)} modelos).")
+                st.success(f"✅ Google Conectado")
                 
-                # BUSQUEDA INTELIGENTE
+                # BUSCADOR INTELIGENTE DE TU FAVORITO
                 index_favorito = 0
                 for i, nombre in enumerate(lista_modelos):
                     if "robotics" in nombre:
                         index_favorito = i
                         break
+                    elif "2.5" in nombre and index_favorito == 0: # Prioridad 2: El nuevo 2.5
+                        index_favorito = i
                     elif "flash-latest" in nombre and index_favorito == 0:
                         index_favorito = i
 
-                # UN SOLO SELECTOR QUE GOBIERNA TODO
-                modelo_google_seleccionado = st.selectbox(
-                    "🤖 Modelo ÚNICO (Scout + Juez 1):",
+                modelo_titular = st.selectbox(
+                    "🤖 Modelo Comandante:",
                     lista_modelos,
-                    index=index_favorito
+                    index=index_favorito,
+                    help="Si este modelo se agota, HYDRA activará automáticamente a Gemini 1.5 Flash."
                 )
-                
-                if "2.5" in modelo_google_seleccionado or "robotics" in modelo_google_seleccionado:
-                    st.warning(f"⚠️ ¡OJO! El modelo {modelo_google_seleccionado} suele tener límite de 20 usos/día. Gastarás 2 por análisis.")
-                
             else:
-                st.error("❌ Llave válida, pero sin modelos.")
+                st.error("❌ Sin modelos disponibles.")
         except Exception as e:
             st.error(f"❌ Error Google: {e}")
     else:
         st.warning("⚠️ Falta Google Key.")
 
     st.markdown("---")
-    st.success("SISTEMA: V16.1 (MIRROR)")
+    st.success("SISTEMA: V17.0 (HYDRA)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- BITÁCORA ---
@@ -165,10 +216,10 @@ MOTIVO: [Resumen final]
 ACCIÓN: [Instrucción precisa]
 """
 
-# --- INTERFAZ ---
+# --- INTERFAZ PRINCIPAL ---
 with st.form(key='bunker_form'):
     raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter):", height=200)
-    submit_button = st.form_submit_button("⚡ EJECUTAR CORTE SUPREMA")
+    submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA HYDRA")
 
 if submit_button:
     if not raw_data:
@@ -181,18 +232,27 @@ if submit_button:
         
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (USA MODELO SELECCIONADO)
+        # ==========================================
+        # 1. SCOUT (SISTEMA HYDRA)
+        # ==========================================
         with col1:
             st.subheader("🦅 Scout (Google)")
-            if modelo_google_seleccionado:
-                try:
-                    genai.configure(api_key=google_key)
-                    # INSTANCIA DIRECTA DEL MODELO ELEGIDO
-                    model_scout = genai.GenerativeModel(modelo_google_seleccionado)
-                    res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
-                    scout_resp = res_scout.text
+            
+            if modelo_titular:
+                # LLAMADA A HYDRA
+                texto, status, tipo, exito = generar_respuesta_blindada(
+                    google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS:\n" + raw_data
+                )
+                
+                if exito:
+                    scout_resp = texto
+                    # Feedback de estado (Si hubo rescate o no)
+                    if tipo == "success": st.caption(status)
+                    else: st.warning(status)
                     
-                    # Extracción nombre
+                    st.info(scout_resp)
+                    
+                    # Extraer Nombre Partido
                     try:
                         for linea in scout_resp.split('\n'):
                             if "OBJETIVO:" in linea:
@@ -200,10 +260,9 @@ if submit_button:
                                 break
                     except:
                         pass
+                else:
+                    st.error(texto)
                     
-                    st.info(scout_resp)
-                except Exception as e:
-                    st.error(f"Error Gemini Scout ({modelo_google_seleccionado}): {e}")
             elif openai_key: # Fallback OpenAI
                  try:
                     client = openai.OpenAI(api_key=openai_key)
@@ -212,11 +271,13 @@ if submit_button:
                         messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     scout_resp = res_scout.choices[0].message.content
-                    st.warning(f"⚠️ Scout (OpenAI):\n{scout_resp}")
+                    st.warning(f"⚠️ Scout (OpenAI - Sin Google Key):\n{scout_resp}")
                  except Exception as e:
                     st.error(f"Error OpenAI: {e}")
 
-        # 2. AUDITOR (OPENAI)
+        # ==========================================
+        # 2. AUDITOR (OPENAI - SIEMPRE FIABLE)
+        # ==========================================
         with col2:
             st.subheader("🛡️ Auditor (OpenAI)")
             if not openai_key:
@@ -235,28 +296,32 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_resp = "ERROR."
 
-        # CONTINUAR SOLO SI HAY DATOS
+        # ==========================================
+        # 3. JUECES (SOLO SI HAY DATOS)
+        # ==========================================
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
-            # --- JUEZ 1 (GEMINI - USA EL MISMO MODELO SELECCIONADO) ---
-            st.header(f"👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI - {modelo_google_seleccionado})")
+            # --- JUEZ 1 (SISTEMA HYDRA - INDEPENDIENTE) ---
+            st.header("👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI HYDRA)")
             
-            try:
-                if modelo_google_seleccionado:
-                    genai.configure(api_key=google_key)
-                    # INSTANCIA DIRECTA DEL MISMO MODELO
-                    model_juez1 = genai.GenerativeModel(modelo_google_seleccionado)
-                    prompt_j1 = JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
-                    res_j1 = model_juez1.generate_content(prompt_j1)
-                    juez1_resp = res_j1.text
+            if modelo_titular:
+                # HYDRA ACTÚA DE NUEVO (Puede que aquí rote si el Scout gastó la última bala)
+                texto_j1, status_j1, tipo_j1, exito_j1 = generar_respuesta_blindada(
+                    google_key, modelo_titular, 
+                    JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                )
+                
+                if exito_j1:
+                    juez1_resp = texto_j1
+                    if tipo_j1 == "success": st.caption(status_j1)
+                    else: st.warning(status_j1)
                     st.info(juez1_resp)
                 else:
                     juez1_resp = "NO DISPONIBLE"
-            except Exception as e:
-                # AQUÍ SALDRÁ EL ERROR EXACTO SI FALLA (EJ: QUOTA EXCEEDED)
-                st.error(f"Error Juez 1 ({modelo_google_seleccionado}): {e}")
-                juez1_resp = "ERROR"
+                    st.error(texto_j1)
+            else:
+                juez1_resp = "NO DISPONIBLE"
 
             st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
 
@@ -280,7 +345,7 @@ if submit_button:
                     )
                     texto_supremo = res_supremo.choices[0].message.content
                     
-                    # VISUALIZACIÓN
+                    # VISUALIZACIÓN FINAL
                     if "🔴" in texto_supremo:
                         st.error(texto_supremo)
                     elif "🟢" in texto_supremo:
@@ -288,7 +353,7 @@ if submit_button:
                     else:
                         st.warning(texto_supremo)
 
-                    # HORA QUITO
+                    # HORA QUITO (UTC-5)
                     hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
 
                     veredicto = "⚪"
