@@ -10,13 +10,20 @@ with st.sidebar:
     openai_key = st.text_input("OpenAI API Key", type="password")
     google_key = st.text_input("Google API Key", type="password")
 
-# --- CONSTITUCIÓN ALPHA ---
+# --- CONSTITUCIÓN ALPHA ACTUALIZADA ---
 PROMPT_MADRE = """
-Actúa como Scout de Élite. Detecta momentum.
-FORMATO DE SALIDA (ESTRICTO):
+Actúa como Scout de Élite. Analiza los datos con frialdad.
+ESTRUCTURA DE RESPUESTA (ESTRICTA):
+
 1. Oportunidad: [Sí/No]
-2. Fundamento: [Máximo 15 palabras]
+2. Fundamento: [Frase corta de alto impacto]
 3. Urgencia: [Baja/Media/Alta]
+
+---
+🔍 EL POR QUÉ (PROFUNDIDAD):
+1. [Análisis de la métrica más crítica]
+2. [Análisis del comportamiento del equipo/rojas/sustituciones]
+3. [Proyección de lo que pasará en los próximos 10 minutos]
 """
 
 raw_data = st.text_area("📥 PEGA EL RAW DATA AQUÍ:", height=150)
@@ -31,10 +38,9 @@ if st.button("⚡ ANALIZAR PARTIDO"):
             st.subheader("🦅 Scout (Gemini)")
             try:
                 genai.configure(api_key=google_key)
-                # EL NOMBRE QUE YA NOS FUNCIONÓ:
                 model = genai.GenerativeModel('gemini-flash-latest')
                 
-                response = model.generate_content(PROMPT_MADRE + "\nDATOS:\n" + raw_data)
+                response = model.generate_content(PROMPT_MADRE + "\nDATOS DEL PARTIDO:\n" + raw_data)
                 st.success(response.text)
             except Exception as e:
                 st.error(f"Error en Scout: {str(e)}")
@@ -42,13 +48,13 @@ if st.button("⚡ ANALIZAR PARTIDO"):
         with col2:
             st.subheader("🛡️ Auditor (ChatGPT)")
             if not openai_key:
-                st.warning("⚠️ Requiere saldo en OpenAI ($5).")
+                st.warning("⚠️ Sin API Key de OpenAI ($5).")
             else:
                 try:
                     client = openai.OpenAI(api_key=openai_key)
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Auditor de riesgo. Máximo 15 palabras."},
+                        messages=[{"role": "system", "content": "Auditor de riesgo. Máximo 30 palabras sobre por qué NO entrar."},
                                   {"role": "user", "content": raw_data}]
                     )
                     st.info(res.choices[0].message.content)
@@ -56,4 +62,4 @@ if st.button("⚡ ANALIZAR PARTIDO"):
                     st.error("❌ Auditor sin saldo.")
 
 st.markdown("---")
-st.caption("The Boss: Ejecución de élite.")
+st.caption("The Boss: Decisión basada en datos, ejecución basada en instinto.")
