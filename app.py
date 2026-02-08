@@ -4,7 +4,7 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v12.1 - ELITE ONLY", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v13.0 - FLASH SCOUT", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha (DUAL)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
@@ -19,44 +19,39 @@ with st.sidebar:
     st.markdown("---")
     st.header("⚙️ SELECCIÓN DE ARMA (SCOUT)")
     
-    # --- LÓGICA DE DETECCIÓN REAL (CON FILTRO ANTI-TONTOS) ---
+    # --- LÓGICA DE DETECCIÓN REAL ---
     modelo_google_seleccionado = None
-    usar_openai_como_scout = False
-
+    
     if google_key:
         try:
             genai.configure(api_key=google_key)
-            # Preguntamos a Google qué hay disponible
             lista_modelos = []
             for m in genai.list_models():
-                # FILTRO DE ÉLITE: SOLO ACEPTAMOS "GEMINI" Y QUE GENERE TEXTO
                 if 'generateContent' in m.supported_generation_methods:
-                    if 'gemini' in m.name: # <--- AQUÍ ESTÁ LA PURGA
+                    if 'gemini' in m.name: # Solo modelos Gemini
                         lista_modelos.append(m.name)
             
             if lista_modelos:
-                st.success(f"✅ ÉLITE GOOGLE: {len(lista_modelos)} modelos.")
-                # Ordenamos para que los 'flash' o 'pro' salgan primero
-                lista_modelos.sort(reverse=True) 
+                # Buscamos tu favorito para ponerlo primero
+                indice_favorito = 0
+                for i, nombre in enumerate(lista_modelos):
+                    if "flash-latest" in nombre:
+                        indice_favorito = i
+                        break
+                
+                st.success(f"✅ Google Conectado: {len(lista_modelos)} modelos.")
                 modelo_google_seleccionado = st.selectbox(
-                    "🤖 Elige tu Gemini:",
+                    "🤖 Elige el modelo Google:",
                     lista_modelos,
-                    index=0
+                    index=indice_favorito
                 )
             else:
-                st.error("❌ Tu llave funciona, pero solo tienes modelos 'tontos' (Gemma). Pasando a OpenAI.")
-                usar_openai_como_scout = True
+                st.error("❌ Tu llave funciona, pero no tiene modelos Gemini habilitados.")
         except Exception as e:
             st.error(f"❌ Error de conexión Google: {e}")
-            usar_openai_como_scout = True
     else:
         st.warning("⚠️ Pon la Google Key para activar a Gemini.")
-        usar_openai_como_scout = True
 
-    # ACTIVACIÓN DE EMERGENCIA AUTOMÁTICA
-    if usar_openai_como_scout:
-        st.info("🚨 MODO EMERGENCIA: Usando OpenAI para todo.")
-    
     st.markdown("---")
     st.info("🎯 OBJETIVO: $6,000")
     
@@ -127,17 +122,27 @@ FORMATO:
 5. DAÑO: [Nivel]
 """
 
+# --- CORRECCIÓN EN EL JUEZ PARA EVITAR SILENCIO ---
 JUEZ_PROMPT = """
 ACTÚAS COMO JUEZ SUPREMO.
-REGLAS:
+REGLAS DE JERARQUÍA:
 1. Auditor NO -> 🔴 NO OPERAR.
 2. Scout NO -> 🔴 NO OPERAR.
 3. Scout SÍ + Auditor ESPERAR -> 🟡 ESPERAR.
 4. AMBOS SÍ -> 🟢 DISPARAR.
-SALIDA ÚNICA:
-SENTENCIA FINAL: [🔴/🟡/🟢]
-MOTIVO: [Resumen]
-ACCIÓN: [Instrucción]
+
+⚠️ INSTRUCCIÓN CRÍTICA DE FORMATO:
+TU SALIDA DEBE SER EXACTAMENTE UNA DE ESTAS TRES OPCIONES (COPIA EL TEXTO TAL CUAL):
+OPCIÓN A: "SENTENCIA FINAL: 🔴 NO OPERAR"
+OPCIÓN B: "SENTENCIA FINAL: 🟡 ESPERAR"
+OPCIÓN C: "SENTENCIA FINAL: 🟢 DISPARAR"
+
+NO pongas solo el emoji. Escribe el texto completo.
+
+TU RESPUESTA FINAL:
+SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
+MOTIVO: [Resumen de 1 frase explicando por qué ganó esa postura]
+ACCIÓN: [Instrucción precisa para The Boss]
 """
 
 # --- INTERFAZ ---
@@ -153,33 +158,28 @@ if submit_button:
         auditor_resp = ""
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (GOOGLE O OPENAI)
+        # 1. SCOUT (GOOGLE - TU MODELO FAVORITO)
         with col1:
             st.subheader("🦅 Scout")
-            # Intentamos Google si hay modelo seleccionado
             if modelo_google_seleccionado:
                 try:
                     genai.configure(api_key=google_key)
-                    # USAMOS EXACTAMENTE EL NOMBRE QUE GOOGLE NOS DIO EN LA LISTA
                     model_scout = genai.GenerativeModel(modelo_google_seleccionado)
                     res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
                     scout_resp = res_scout.text
                     st.info(f"Gemini ({modelo_google_seleccionado}):\n{scout_resp}")
                 except Exception as e:
                     st.error(f"Error Gemini: {e}")
-                    scout_resp = "" 
-            
-            # Fallback a OpenAI si Google falló o no estaba disponible
-            if not scout_resp and openai_key:
-                try:
+            elif openai_key: # Fallback a OpenAI si Google no está configurado
+                 try:
                     client = openai.OpenAI(api_key=openai_key)
                     res_scout = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     scout_resp = res_scout.choices[0].message.content
-                    st.warning(f"⚠️ Usando OpenAI como respaldo (Scout):\n{scout_resp}")
-                except Exception as e:
+                    st.warning(f"⚠️ Usando OpenAI (Scout):\n{scout_resp}")
+                 except Exception as e:
                     st.error(f"Error OpenAI: {e}")
 
         # 2. AUDITOR (SIEMPRE OPENAI)
@@ -201,18 +201,18 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_resp = "ERROR."
 
-        # 3. JUEZ
+        # 3. JUEZ (DUALIDAD)
         st.markdown("---")
         st.header("⚖️ SENTENCIA")
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             try:
-                # El Juez usa OpenAI para máxima coherencia final
+                # El Juez usa OpenAI para obligar al formato correcto
                 if openai_key:
                     client = openai.OpenAI(api_key=openai_key)
-                    prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                    prompt_final = JUEZ_PROMPT + f"\n\nSCOUT (Dice):\n{scout_resp}\n\nAUDITOR (Dice):\n{auditor_resp}"
                     res_juez = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "ERES EL JUEZ SUPREMO."}, {"role": "user", "content": prompt_final}]
+                        messages=[{"role": "system", "content": "ERES EL JUEZ SUPREMO. SÉ ESTRICTO CON EL FORMATO."}, {"role": "user", "content": prompt_final}]
                     )
                     juez_texto = res_juez.choices[0].message.content
                     st.markdown(f"### {juez_texto}")
