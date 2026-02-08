@@ -12,11 +12,10 @@ with st.sidebar:
 
 # --- CONSTITUCIÓN ALPHA ---
 PROMPT_MADRE = """
-Actúa como Scout de Élite. Tu objetivo es detectar momentum y fuego.
-REGLA DE ORO: No escribas párrafos. No hagas introducciones.
+Actúa como Scout de Élite. Detecta momentum.
 FORMATO DE SALIDA (ESTRICTO):
 1. Oportunidad: [Sí/No]
-2. Fundamento: [Máximo 15 palabras sobre el momentum/sangre]
+2. Fundamento: [Máximo 15 palabras]
 3. Urgencia: [Baja/Media/Alta]
 """
 
@@ -32,13 +31,10 @@ if st.button("⚡ ANALIZAR PARTIDO"):
             st.subheader("🦅 Scout (Gemini)")
             try:
                 genai.configure(api_key=google_key)
-                # Usamos el modelo Flash que ya vimos que funciona en tu cuenta
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # EL NOMBRE QUE YA NOS FUNCIONÓ:
+                model = genai.GenerativeModel('gemini-flash-latest')
                 
-                # Inyectamos la Constitución y los datos
-                response = model.generate_content(PROMPT_MADRE + "\nDATOS DEL PARTIDO:\n" + raw_data)
-                
-                # Mostramos la respuesta con estilo limpio
+                response = model.generate_content(PROMPT_MADRE + "\nDATOS:\n" + raw_data)
                 st.success(response.text)
             except Exception as e:
                 st.error(f"Error en Scout: {str(e)}")
@@ -52,12 +48,12 @@ if st.button("⚡ ANALIZAR PARTIDO"):
                     client = openai.OpenAI(api_key=openai_key)
                     res = client.chat.completions.create(
                         model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": "Auditor de riesgo. Máximo 20 palabras."},
+                        messages=[{"role": "system", "content": "Auditor de riesgo. Máximo 15 palabras."},
                                   {"role": "user", "content": raw_data}]
                     )
                     st.info(res.choices[0].message.content)
                 except:
-                    st.error("❌ Auditor sin saldo o desconectado.")
+                    st.error("❌ Auditor sin saldo.")
 
 st.markdown("---")
-st.caption("The Boss: Ejecución de élite - Proceso sobre Resultado.")
+st.caption("The Boss: Ejecución de élite.")
