@@ -4,7 +4,7 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v8.6", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v8.7 - COMPATIBLE", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
 # --- INICIALIZACIÓN DE MEMORIA (SESSION STATE) ---
@@ -16,7 +16,7 @@ with st.sidebar:
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     st.markdown("---")
-    st.success("SISTEMA: V8.6 (EMERGENCY FIX)")
+    st.success("SISTEMA: V8.7 (GEMINI-PRO)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- VISUALIZADOR DE HISTORIAL ---
@@ -158,7 +158,6 @@ ACCIÓN: [Instrucción precisa para The Boss]
 
 # --- INTERFAZ DE USUARIO ---
 with st.form(key='bunker_form'):
-    # ESTA ES LA LINEA QUE SE CORTO, AHORA ESTA CORREGIDA:
     raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter):", height=200, placeholder="Pega estadísticas aquí...")
     submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA")
 
@@ -172,12 +171,12 @@ if submit_button:
         auditor_response_text = ""
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (Gemini 1.5 Flash)
+        # 1. SCOUT (CAMBIO A GEMINI-PRO: UNIVERSAL)
         with col1:
             st.subheader("🦅 Scout (Oportunidad)")
             try:
                 genai.configure(api_key=google_key)
-                model_scout = genai.GenerativeModel('gemini-1.5-flash')
+                model_scout = genai.GenerativeModel('gemini-pro')
                 res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
                 scout_response_text = res_scout.text
                 st.info(scout_response_text)
@@ -203,13 +202,13 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_response_text = "ERROR DE CONEXIÓN."
 
-        # 3. JUEZ SUPREMO
+        # 3. JUEZ SUPREMO (CAMBIO A GEMINI-PRO)
         st.markdown("---")
         st.header("⚖️ SENTENCIA FINAL (JUEZ SUPREMO)")
         
         if scout_response_text and "ERROR" not in auditor_response_text and "NO DISPONIBLE" not in auditor_response_text:
             try:
-                model_juez = genai.GenerativeModel('gemini-1.5-flash')
+                model_juez = genai.GenerativeModel('gemini-pro')
                 prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_response_text}\n\nAUDITOR:\n{auditor_response_text}"
                 res_juez = model_juez.generate_content(prompt_final)
                 
@@ -236,4 +235,4 @@ if submit_button:
             st.warning("⚠️ Faltan opiniones para dictar sentencia.")
 
 st.markdown("---")
-st.caption("Disciplina Alpha. V8.6 Final.")
+st.caption("Disciplina Alpha. V8.7 Compatible.")
