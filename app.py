@@ -4,7 +4,7 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v8.1 - VELOCIDAD", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v8.2 - CUOTA DESBLOQUEADA", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
 # --- INICIALIZACIÓN DE MEMORIA (SESSION STATE) ---
@@ -16,7 +16,7 @@ with st.sidebar:
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     st.markdown("---")
-    st.success("SISTEMA FINAL: V8.1 (SHORTCUTS)")
+    st.success("SISTEMA FINAL: V8.2 (CUOTA 1.5 FLASH)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- VISUALIZADOR DE HISTORIAL (BITÁCORA) ---
@@ -164,7 +164,6 @@ ACCIÓN: [Instrucción precisa para The Boss]
 # --- INTERFAZ DE USUARIO (CON FORMULARIO PARA ATAJO) ---
 with st.form(key='bunker_form'):
     raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter para ejecutar):", height=200, placeholder="Pega estadísticas de Flashscore/Stake aquí...")
-    # El botón de envío dentro del form se activa con Ctrl+Enter en el text_area
     submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA (o presiona Ctrl + Enter)")
 
 if submit_button:
@@ -179,19 +178,20 @@ if submit_button:
 
         col1, col2 = st.columns(2)
         
-        # 1. EJECUCIÓN SCOUT (Gemini - Modo Agresivo)
+        # 1. EJECUCIÓN SCOUT (Gemini - MODELO CORREGIDO 1.5 FLASH)
         with col1:
             st.subheader("🦅 Scout (Oportunidad)")
             try:
                 genai.configure(api_key=google_key)
-                model_scout = genai.GenerativeModel('gemini-flash-latest')
+                # CAMBIO CLAVE AQUÍ: Usamos gemini-1.5-flash explícitamente
+                model_scout = genai.GenerativeModel('gemini-1.5-flash')
                 res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
                 scout_response_text = res_scout.text
                 st.info(scout_response_text)
             except Exception as e: 
                 st.error(f"Error Scout: {str(e)}")
 
-        # 2. EJECUCIÓN AUDITOR (OpenAI - Modo Conservador)
+        # 2. EJECUCIÓN AUDITOR (OpenAI)
         with col2:
             st.subheader("🛡️ Auditor (Riesgo)")
             if not openai_key:
@@ -216,8 +216,8 @@ if submit_button:
         
         if scout_response_text and "ERROR" not in auditor_response_text and "NO DISPONIBLE" not in auditor_response_text:
             try:
-                # El Juez usa Gemini (más rápido/barato) para leer a ambos
-                model_juez = genai.GenerativeModel('gemini-flash-latest')
+                # El Juez usa Gemini 1.5 Flash (MODELO CORREGIDO)
+                model_juez = genai.GenerativeModel('gemini-1.5-flash')
                 prompt_final = JUEZ_PROMPT + f"\n\n--- ANÁLISIS SCOUT ---\n{scout_response_text}\n\n--- ANÁLISIS AUDITOR ---\n{auditor_response_text}"
                 res_juez = model_juez.generate_content(prompt_final)
                 
