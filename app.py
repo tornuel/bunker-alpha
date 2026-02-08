@@ -4,12 +4,14 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v8.8 - SELECTOR", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v8.9 - AUTO-DETECT", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
-# --- INICIALIZACIÓN DE MEMORIA ---
+# --- INICIALIZACIÓN DE VARIABLES ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
+if 'mis_modelos' not in st.session_state:
+    st.session_state['mis_modelos'] = ["gemini-pro"] # Fallback por defecto
 
 with st.sidebar:
     st.header("🔑 Llaves de Mando")
@@ -18,22 +20,35 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("⚙️ Calibración de Arma")
-    # --- AQUÍ ESTÁ LA SOLUCIÓN: ELIGE EL MODELO TÚ MISMO ---
+    
+    # --- BOTÓN DE AUTO-DETECCIÓN ---
+    if st.button("🔄 DETECTAR MODELOS DISPONIBLES"):
+        if not google_key:
+            st.error("❌ Pon la Google API Key primero.")
+        else:
+            try:
+                genai.configure(api_key=google_key)
+                # Preguntamos a Google qué modelos tiene esta API Key
+                modelos_encontrados = []
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        modelos_encontrados.append(m.name)
+                
+                if modelos_encontrados:
+                    st.session_state['mis_modelos'] = modelos_encontrados
+                    st.success(f"¡ÉXITO! {len(modelos_encontrados)} modelos encontrados.")
+                else:
+                    st.error("No se encontraron modelos compatibles.")
+            except Exception as e:
+                st.error(f"Error de conexión: {str(e)}")
+
+    # SELECTOR DINÁMICO
     model_option = st.selectbox(
-        "🤖 Modelo Google (Scout/Juez):",
-        [
-            "gemini-1.5-flash", 
-            "gemini-1.5-flash-latest",
-            "gemini-pro", 
-            "gemini-1.0-pro",
-            "gemini-1.5-pro",
-            "gemini-2.0-flash-exp"
-        ],
-        index=0 # Por defecto prueba el primero
+        "🤖 Selecciona un Modelo Validado:",
+        st.session_state['mis_modelos']
     )
     
-    st.success(f"SISTEMA: V8.8 (USANDO {model_option})")
-    st.info("🎯 OBJETIVO: $6,000")
+    st.info(f"Usando: {model_option}")
     
     # --- BITÁCORA ---
     st.markdown("---")
@@ -43,170 +58,109 @@ with st.sidebar:
             with st.expander(f"#{len(st.session_state['bitacora'])-i} | {registro['hora']} | {registro['veredicto']}"):
                 st.write(f"**Juez:** {registro['sentencia']}")
                 st.caption(f"**Motivo:** {registro['motivo']}")
-    else:
-        st.caption("Sin operaciones.")
     
     if st.button("🗑️ Borrar Historial"):
         st.session_state['bitacora'] = []
         st.rerun()
 
-# --- CONSTITUCIÓN ALPHA ---
+# --- PROMPTS ---
 CONSTITUCION_ALPHA = """
 [ROL PRINCIPAL]
-Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228. Fusión de la disciplina matemática inflexible de un auditor de riesgos y la visión estratégica de un gestor de fondos de cobertura.
-OBJETIVO: Crecimiento compuesto del bankroll para alcanzar la meta de $6,000.
-FILOSOFÍA: Identificar operaciones EV+ repetibles. Un gol que ocurre ≠ una operación válida. Una operación válida es aquella que sobrevive a largo plazo, incluso cuando falla.
-MANTRA: "El sistema prefiere perder un gol antes que ganar una mala costumbre."
+Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228.
+OBJETIVO: Crecimiento compuesto del bankroll.
+FILOSOFÍA: Identificar operaciones EV+ repetibles.
 
 [PROTOCOLO DE ANÁLISIS: RAW DATA FIRST]
-Tu fuente de verdad absoluta es el TEXTO PEGADO (Raw Data).
-1. Velocidad: Prioridad máxima.
-2. Triangulación: Solo si se envían links (Flashscore/Sofascore), crúzalos con el texto. Si no, confía ciegamente en el Raw Data.
-3. Input Estándar Obligatorio: El sistema requiere: Marcador, Minuto, Ataques Peligrosos (AP), SOT, Córners, Tarjetas y Cuota.
-   👉 Sin datos suficientes → NO CONCLUSIÓN.
+Fuente de verdad: TEXTO PEGADO (Raw Data).
+Input Obligatorio: Marcador, Minuto, AP, SOT, Córners, Tarjetas, Cuota.
 
-⚖️ PRINCIPIOS INQUEBRANTABLES (EL CÓDIGO DEL AUDITOR)
-- Proceso > Resultado: El sistema se evalúa por la calidad de la decisión, no por el gol.
-- Capacidad ≠ Operabilidad: Que un equipo pueda marcar no implica que sea rentable operarlo.
-- Necesidad > Inercia: Los mejores trades ocurren cuando el marcador obliga a atacar, no cuando el partido ya está resuelto.
-- Caos no es ventaja: Tarjetas rojas tempranas, goleadas amplias o ligas menores aumentan la varianza. Deben ser penalizadas.
+⚖️ PRINCIPIOS INQUEBRANTABLES (AUDITOR)
+- Proceso > Resultado.
+- Capacidad ≠ Operabilidad.
+- Necesidad > Inercia.
 - Timing de mercado: Buena lectura con mala cuota = NO TRADE.
 
-🧩 ESTRUCTURA DEL COMITÉ (DUALIDAD)
-1. SCOUT DE OPORTUNIDAD (Agresivo - Motor): Busca momentum, presión, "Minuto de Ignición" y explica por qué SÍ podría ocurrir un gol.
-2. AUDITOR DE RIESGO (Conservador - Freno): Evalúa contexto, incentivo, mercado, aplica vetos y explica por qué NO debería operarse. El desacuerdo es información valiosa, no un error.
+🧩 ESTRUCTURA DEL COMITÉ
+1. SCOUT (Agresivo): Busca momentum y asedio.
+2. AUDITOR (Conservador): Evalúa riesgo y cuota.
 
-🏛️ CONSTITUCIÓN TÁCTICA (LAS REGLAS DE ORO DE LA ABUELA + SNIPER)
-1. FILTROS DE ENTRADA Y MOMENTUM:
-   - Ritmo Alpha (Asedio): Solo validar si AP >= 1.2/min (12 AP en 10 min).
-   - ⚠️ Efecto Espejismo: Si la posesión es alta pero los AP son bajos, DESCARTAR.
-   - ⚡ MODO SNIPER (Prioridad): Si AP/Min >= 1.5 Y SOT >= 4 en los últimos 15 min. (Etiqueta: 🟢 SNIPER DETECTADO).
-   - Regla 1.50 / 6 (Clutch Time >70'): Para disparar en los últimos 20 min, obligatorio Ritmo > 1.50 Y al menos 6 Tiros a Puerta (SOT) combinados.
-   - Flexibilidad Alpha: Reducir exigencia de AP (1.2 -> 0.90) SOLO SI: Hay +8 córners antes del min 60 O el xG acumulado es > 2.0 con marcador corto.
-   - 🔄 Volumen Combinado: Ambos equipos deben aportar. Si el rival tiene ataques nulos, el favorito se relaja y el partido muere.
-   - Radar de Ignición: Si el ritmo es bajo (<1.2) pero el xG es alto (>1.20) o hay tensión (0-0, 1-1), calcula obligatoriamente el "Minuto de Ignición".
-
-2. FILTROS DE SEGURIDAD Y VETOS (SABIDURÍA VETERANA):
-   - Filtro 1T: Yield histórico -38%. NO se apuesta en 1ª Mitad.
-     * Excepción: xG > 1.0, +10 AP en últimos 15 min, o asedio de +3 córners seguidos.
-   - Filtro de Puntería: VETO total si "Remates Fuera" es > 2x SOT.
-   - Anti-Ravenna (Calidad): En recuperación (PRU), PROHIBIDO Ligas C, D, Regionales, Reservas o Juveniles. Prioridad: Ligas Top.
-   - Filtro de Incentivo: VETO si el dominante gana por 2 o más goles, salvo que el xG del rival sea > 1.0.
-
-3. PROTOCOLO "CEMENTERIO" (UNDER):
-   - Filtro Zombi: Si SOT 0-1 (combinados), xG < 0.30 y AP < 1.0.
-   - Entrada: Min 30-35 (Under 0.5 1T) o Min 75-80 (Under marcador actual +0.5).
-
-4. ESTRATEGIA DE ESPERA (SWEET SPOT - CORREGIDO):
-   - Rango de Oro: Cuota entre 1.80 y 2.10.
-   - 🚨 REGLA DE VALOR: Si la cuota es MAYOR a 2.10 (ej. 2.70, 3.00), es VALOR PURO. ¡APROBAR! No rechazar por ser alta.
-   - Acción: Solo si la cuota es INFERIOR a 1.80, el veredicto DEBE ser ESPERAR. Indicar: "Espera a que suba a [X.XX]".
-   - Mercados: Solo Goles y Córners. Omitir asiáticos.
-
-🏛️ GESTIÓN DE CAPITAL (MANIFIESTO ALPHA 2.0)
-ESTRATEGIA CORE: Ciclos Blindados.
-- PASO 1: $0.50 (Recuperas riesgo inicial).
-- PASO 2: $0.50 (Dinero de la casa).
-- PASO 3: $1.00 (Dinero de la casa). Cierre: $2.00 netos.
-
-PROTOCOLO DE RECUPERACIÓN (3 Balas - Solo si falla P1):
-- Bala 1: $0.50 | Bala 2: $1.00 | Bala 3: $2.00.
-- STOP LOSS: Si falla Bala 3, pérdida de $3.50. Fin de sesión.
-
-CONTINUIDAD PRU (Si falla P2 o P3):
-- Falla P2: PRU Bala 1 ($1.25) -> PRU Bala 2 ($2.80).
-- Falla P3: PRU Bala 1 ($2.00).
-
-[HOJA DE RUTA: ESCALERA AL $6K]
-- NIVEL 1 ($70-$149): Stake Base $0.50 | Ganancia Ciclo $2.00.
-- NIVEL 2 ($150-$299): Stake Base $1.00 | Ganancia Ciclo $4.00.
+🏛️ REGLAS TÁCTICAS
+- Ritmo Alpha: AP >= 1.2/min.
+- Modo Sniper: AP/Min >= 1.5 Y SOT >= 4 (últimos 15 min).
+- Regla 1.50/6: Clutch Time >70' exige Ritmo > 1.50 y 6 SOT.
+- VETO Puntería: Remates Fuera > 2x SOT.
+- VETO Incentivo: Dominante gana por 2+ goles (salvo xG rival > 1.0).
+- SWEET SPOT: Cuota > 2.10 es VALOR PURO (APROBAR). Si < 1.80 (ESPERAR).
 """
 
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
-TU ROL: Scout de Oportunidad (Agresivo - Motor).
-TU ÚNICA MISIÓN: Detectar el momentum, el asedio y el gol inminente.
-MENTALIDAD DE GUERRA:
-- Eres el acelerador, no el freno.
-- Si ves asedio (AP > 1.2), TU DEBER es proponer el disparo.
-- Deja que el Auditor se preocupe por la liga, el bankroll o el riesgo. Tú busca la SANGRE (GOL).
-- Si el partido está roto, grita "🟢 DISPARAR".
-- NO seas tímido. Si hay fuego, repórtalo.
-FORMATO OBLIGATORIO:
+TU ROL: Scout de Oportunidad (Agresivo).
+MENTALIDAD: Acelerador. Si ves asedio, propón disparo.
+FORMATO:
 1. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
-2. MERCADO: [Tipo de apuesta]
-3. ANÁLISIS TÉCNICO: [Momentum, Puntería, xG, Sniper, Ignición]
-4. URGENCIA: [Baja / Media / Alta]
+2. MERCADO: [Tipo]
+3. ANÁLISIS: [Momentum, Puntería, xG]
+4. URGENCIA: [Baja/Media/Alta]
 """
 
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
-TU ROL: Auditor de Riesgo (Conservador - Freno).
-TU MISIÓN: Proteger el capital a toda costa. Eres el "No" por defecto.
-MENTALIDAD DE BANQUERO:
-- Aplica los vetos de la Abuela con rigor.
-- Si la liga es sospechosa (Reservas/Juveniles), VETA.
-- ⚠️ IMPORTANTE SOBRE CUOTAS:
-  - Si Cuota < 1.80 -> ESPERAR.
-  - Si Cuota entre 1.80 y 2.10 -> APROBAR (Sweet Spot).
-  - Si Cuota > 2.10 -> ¡APROBAR! Es Valor Extra (EV++). NO RECHAZAR POR SER ALTA.
-- Si el Scout se emociona demasiado, tú pon la calma.
-FORMATO OBLIGATORIO:
+TU ROL: Auditor de Riesgo (Conservador).
+MENTALIDAD: Freno. Protege el capital.
+FORMATO:
 1. VEREDICTO: [SÍ / NO / ESPERAR]
-2. RIESGO CLAVE: [Lógica de negocio, Filtro fallido, Cuota baja]
-3. MONITOREO PREDICTIVO: [Minuto exacto y Cuota objetivo para el Sweet Spot]
-4. GESTIÓN DE RIESGO: [Fase (P1/P2/P3/PRU) | Stake Exacto $ | Nivel Actual]
-5. DAÑO POTENCIAL: [Bajo / Medio / Alto]
-❌ PROHIBIDO: Storytelling. Sé frío y directo.
+2. RIESGO: [Clave]
+3. MONITOREO: [Sweet Spot]
+4. GESTIÓN: [Fase | Stake]
+5. DAÑO: [Nivel]
 """
 
 JUEZ_PROMPT = """
-ACTÚAS COMO EL JUEZ SUPREMO DEL BÚNKER ALPHA.
-Tu tarea es leer el análisis del SCOUT (El Loco Agresivo) y el análisis del AUDITOR (El Banquero Conservador) y dictar sentencia final.
-REGLAS DE JERARQUÍA (NO NEGOCIABLES):
-1. Si AUDITOR dice NO -> SENTENCIA: 🔴 NO OPERAR (El riesgo anula la oportunidad).
-2. Si SCOUT dice NO -> SENTENCIA: 🔴 NO OPERAR (No hay momentum).
-3. Si SCOUT dice SÍ y AUDITOR dice ESPERAR -> SENTENCIA: 🟡 ESPERAR (Sweet Spot).
-4. SOLO si AMBOS dicen SÍ -> SENTENCIA: 🟢 DISPARAR.
-TU SALIDA DEBE SER SOLO ESTO:
-SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
-MOTIVO: [Resumen de 1 frase explicando por qué ganó esa postura]
-ACCIÓN: [Instrucción precisa para The Boss]
+ACTÚAS COMO JUEZ SUPREMO.
+REGLAS:
+1. Auditor NO -> 🔴 NO OPERAR.
+2. Scout NO -> 🔴 NO OPERAR.
+3. Scout SÍ + Auditor ESPERAR -> 🟡 ESPERAR.
+4. AMBOS SÍ -> 🟢 DISPARAR.
+SALIDA ÚNICA:
+SENTENCIA FINAL: [🔴/🟡/🟢]
+MOTIVO: [Resumen]
+ACCIÓN: [Instrucción]
 """
 
-# --- INTERFAZ DE USUARIO ---
+# --- INTERFAZ ---
 with st.form(key='bunker_form'):
-    raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter):", height=200, placeholder="Pega estadísticas aquí...")
+    raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter):", height=200)
     submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA")
 
 if submit_button:
     if not raw_data:
-        st.warning("⚠️ El Raw Data está vacío.")
+        st.warning("⚠️ Sin datos.")
     elif not google_key:
-        st.error("❌ Falta llave de Google.")
+        st.error("❌ Falta Google Key.")
     else:
-        scout_response_text = ""
-        auditor_response_text = ""
+        scout_resp = ""
+        auditor_resp = ""
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (CON SELECTOR MANUAL)
+        # 1. SCOUT
         with col1:
-            st.subheader("🦅 Scout (Oportunidad)")
+            st.subheader("🦅 Scout")
             try:
                 genai.configure(api_key=google_key)
-                # AQUÍ SE USA LA OPCIÓN QUE ELEGISTE EN EL MENU
+                # USAMOS EL MODELO DETECTADO
                 model_scout = genai.GenerativeModel(model_option)
                 res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
-                scout_response_text = res_scout.text
-                st.info(scout_response_text)
+                scout_resp = res_scout.text
+                st.info(scout_resp)
             except Exception as e: 
-                st.error(f"Error Scout ({model_option}): {str(e)}")
-                st.warning("👉 PRUEBA SELECCIONANDO OTRO MODELO EN LA BARRA LATERAL")
+                st.error(f"Error Scout: {str(e)}")
 
-        # 2. AUDITOR (OpenAI)
+        # 2. AUDITOR
         with col2:
-            st.subheader("🛡️ Auditor (Riesgo)")
+            st.subheader("🛡️ Auditor")
             if not openai_key:
-                st.warning("⚠️ Auditor Desconectado.")
-                auditor_response_text = "AUDITOR NO DISPONIBLE."
+                st.warning("⚠️ Sin OpenAI Key.")
+                auditor_resp = "NO DISPONIBLE."
             else:
                 try:
                     client = openai.OpenAI(api_key=openai_key)
@@ -214,44 +168,35 @@ if submit_button:
                         model="gpt-4o-mini",
                         messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
                     )
-                    auditor_response_text = res_auditor.choices[0].message.content
-                    st.success(auditor_response_text)
+                    auditor_resp = res_auditor.choices[0].message.content
+                    st.success(auditor_resp)
                 except Exception as e: 
                     st.error(f"Error OpenAI: {str(e)}")
-                    auditor_response_text = "ERROR DE CONEXIÓN."
+                    auditor_resp = "ERROR."
 
-        # 3. JUEZ SUPREMO (CON SELECTOR MANUAL)
+        # 3. JUEZ
         st.markdown("---")
-        st.header("⚖️ SENTENCIA FINAL (JUEZ SUPREMO)")
-        
-        if scout_response_text and "ERROR" not in auditor_response_text and "NO DISPONIBLE" not in auditor_response_text:
+        st.header("⚖️ SENTENCIA")
+        if scout_resp and "ERROR" not in auditor_resp:
             try:
                 model_juez = genai.GenerativeModel(model_option)
-                prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_response_text}\n\nAUDITOR:\n{auditor_response_text}"
+                prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
                 res_juez = model_juez.generate_content(prompt_final)
                 
                 juez_texto = res_juez.text
                 st.markdown(f"### {juez_texto}")
 
-                # 4. BITÁCORA
-                veredicto_simple = "⚪ INDEFINIDO"
-                if "🔴" in juez_texto: veredicto_simple = "🔴 NO OPERAR"
-                elif "🟡" in juez_texto: veredicto_simple = "🟡 ESPERAR"
-                elif "🟢" in juez_texto: veredicto_simple = "🟢 DISPARAR"
+                # Bitácora
+                veredicto = "⚪"
+                if "🔴" in juez_texto: veredicto = "🔴 NO OPERAR"
+                elif "🟡" in juez_texto: veredicto = "🟡 ESPERAR"
+                elif "🟢" in juez_texto: veredicto = "🟢 DISPARAR"
                 
-                nuevo_registro = {
+                st.session_state['bitacora'].append({
                     "hora": datetime.now().strftime("%H:%M:%S"),
-                    "veredicto": veredicto_simple,
+                    "veredicto": veredicto,
                     "sentencia": juez_texto,
-                    "motivo": "Revisar detalle."
-                }
-                st.session_state['bitacora'].append(nuevo_registro)
-                
+                    "motivo": "Ver detalle."
+                })
             except Exception as e:
                 st.error(f"Error Juez: {str(e)}")
-        else:
-            st.warning("⚠️ Faltan opiniones para dictar sentencia.")
-
-st.markdown("---")
-st.caption("Disciplina Alpha. V8.8 Selector Manual.")
-
