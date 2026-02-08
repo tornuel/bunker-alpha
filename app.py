@@ -1,21 +1,40 @@
 import streamlit as st
 import openai
 import google.generativeai as genai
+from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v7.2 - JUEZ SUPREMO", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v8.1 - VELOCIDAD", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
+
+# --- INICIALIZACIÓN DE MEMORIA (SESSION STATE) ---
+if 'bitacora' not in st.session_state:
+    st.session_state['bitacora'] = []
 
 with st.sidebar:
     st.header("🔑 Llaves de Mando")
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     st.markdown("---")
-    st.success("SISTEMA FINAL: V7.2 (ADRENALINA)")
+    st.success("SISTEMA FINAL: V8.1 (SHORTCUTS)")
     st.info("🎯 OBJETIVO: $6,000")
+    
+    # --- VISUALIZADOR DE HISTORIAL (BITÁCORA) ---
+    st.markdown("---")
+    st.header("📂 BITÁCORA DE GUERRA")
+    if len(st.session_state['bitacora']) > 0:
+        for i, registro in enumerate(reversed(st.session_state['bitacora'])):
+            with st.expander(f"#{len(st.session_state['bitacora'])-i} | {registro['hora']} | {registro['veredicto']}"):
+                st.write(f"**Juez:** {registro['sentencia']}")
+                st.caption(f"**Motivo:** {registro['motivo']}")
+    else:
+        st.caption("Aún no hay operaciones registradas en esta sesión.")
+    
+    if st.button("🗑️ Borrar Historial"):
+        st.session_state['bitacora'] = []
+        st.rerun()
 
-# --- CONSTITUCIÓN ALPHA v7.1 (PERFECCIÓN FINAL: ABUELA + SNIPER + GOBERNANZA) ---
-# Esta es la ley común, pero cada agente la interpreta con su personalidad.
+# --- CONSTITUCIÓN ALPHA v7.1 (PERFECCIÓN FINAL) ---
 CONSTITUCION_ALPHA = """
 [ROL PRINCIPAL]
 Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228. Fusión de la disciplina matemática inflexible de un auditor de riesgos y la visión estratégica de un gestor de fondos de cobertura.
@@ -142,11 +161,16 @@ MOTIVO: [Resumen de 1 frase explicando por qué ganó esa postura]
 ACCIÓN: [Instrucción precisa para The Boss]
 """
 
-# --- INTERFAZ DE USUARIO ---
-raw_data = st.text_area("📥 PEGA EL RAW DATA:", height=200, placeholder="Pega estadísticas de Flashscore/Stake aquí...")
+# --- INTERFAZ DE USUARIO (CON FORMULARIO PARA ATAJO) ---
+with st.form(key='bunker_form'):
+    raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter para ejecutar):", height=200, placeholder="Pega estadísticas de Flashscore/Stake aquí...")
+    # El botón de envío dentro del form se activa con Ctrl+Enter en el text_area
+    submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA (o presiona Ctrl + Enter)")
 
-if st.button("⚡ EJECUTAR SISTEMA"):
-    if not google_key:
+if submit_button:
+    if not raw_data:
+        st.warning("⚠️ El Raw Data está vacío. Pega la información primero.")
+    elif not google_key:
         st.error("❌ Falta llave de Google (Scout/Juez).")
     else:
         # Variables para guardar las respuestas
@@ -197,8 +221,24 @@ if st.button("⚡ EJECUTAR SISTEMA"):
                 prompt_final = JUEZ_PROMPT + f"\n\n--- ANÁLISIS SCOUT ---\n{scout_response_text}\n\n--- ANÁLISIS AUDITOR ---\n{auditor_response_text}"
                 res_juez = model_juez.generate_content(prompt_final)
                 
-                # Mostrar resultado en grande
-                st.markdown(f"### {res_juez.text}")
+                # Mostrar resultado
+                juez_texto = res_juez.text
+                st.markdown(f"### {juez_texto}")
+
+                # --- 4. GUARDADO EN BITÁCORA ---
+                veredicto_simple = "⚪ INDEFINIDO"
+                if "🔴" in juez_texto: veredicto_simple = "🔴 NO OPERAR"
+                elif "🟡" in juez_texto: veredicto_simple = "🟡 ESPERAR"
+                elif "🟢" in juez_texto: veredicto_simple = "🟢 DISPARAR"
+                
+                nuevo_registro = {
+                    "hora": datetime.now().strftime("%H:%M:%S"),
+                    "veredicto": veredicto_simple,
+                    "sentencia": juez_texto,
+                    "motivo": "Revisar detalle desplegable."
+                }
+                st.session_state['bitacora'].append(nuevo_registro)
+                
             except Exception as e:
                 st.error(f"Error del Juez: {str(e)}")
         else:
