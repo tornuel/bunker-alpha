@@ -4,14 +4,12 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v8.9 - AUTO-DETECT", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v9.0 - AUTO-PILOT", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
-# --- INICIALIZACIÓN DE VARIABLES ---
+# --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
-if 'mis_modelos' not in st.session_state:
-    st.session_state['mis_modelos'] = ["gemini-pro"] # Fallback por defecto
 
 with st.sidebar:
     st.header("🔑 Llaves de Mando")
@@ -19,36 +17,9 @@ with st.sidebar:
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ Calibración de Arma")
-    
-    # --- BOTÓN DE AUTO-DETECCIÓN ---
-    if st.button("🔄 DETECTAR MODELOS DISPONIBLES"):
-        if not google_key:
-            st.error("❌ Pon la Google API Key primero.")
-        else:
-            try:
-                genai.configure(api_key=google_key)
-                # Preguntamos a Google qué modelos tiene esta API Key
-                modelos_encontrados = []
-                for m in genai.list_models():
-                    if 'generateContent' in m.supported_generation_methods:
-                        modelos_encontrados.append(m.name)
-                
-                if modelos_encontrados:
-                    st.session_state['mis_modelos'] = modelos_encontrados
-                    st.success(f"¡ÉXITO! {len(modelos_encontrados)} modelos encontrados.")
-                else:
-                    st.error("No se encontraron modelos compatibles.")
-            except Exception as e:
-                st.error(f"Error de conexión: {str(e)}")
-
-    # SELECTOR DINÁMICO
-    model_option = st.selectbox(
-        "🤖 Selecciona un Modelo Validado:",
-        st.session_state['mis_modelos']
-    )
-    
-    st.info(f"Usando: {model_option}")
+    st.success("SISTEMA: V9.0 (AUTO-PILOT)")
+    st.info("🎯 OBJETIVO: $6,000")
+    st.caption("Modelo: Gemini 1.5 Flash (Optimizado)")
     
     # --- BITÁCORA ---
     st.markdown("---")
@@ -63,7 +34,7 @@ with st.sidebar:
         st.session_state['bitacora'] = []
         st.rerun()
 
-# --- PROMPTS ---
+# --- CONSTITUCIÓN ALPHA (REFORZADA) ---
 CONSTITUCION_ALPHA = """
 [ROL PRINCIPAL]
 Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228.
@@ -91,6 +62,10 @@ Input Obligatorio: Marcador, Minuto, AP, SOT, Córners, Tarjetas, Cuota.
 - VETO Puntería: Remates Fuera > 2x SOT.
 - VETO Incentivo: Dominante gana por 2+ goles (salvo xG rival > 1.0).
 - SWEET SPOT: Cuota > 2.10 es VALOR PURO (APROBAR). Si < 1.80 (ESPERAR).
+
+⛔ PROHIBICIONES ABSOLUTAS:
+- JAMÁS SUGERIR "ASIAN HANDICAPS" (Hándicap Asiático).
+- Solo mercados: Ganador, Goles (Over/Under), Córners.
 """
 
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
@@ -127,6 +102,21 @@ MOTIVO: [Resumen]
 ACCIÓN: [Instrucción]
 """
 
+# --- FUNCIÓN INTELIGENTE DE SELECCIÓN DE MODELO ---
+def get_best_model(api_key):
+    genai.configure(api_key=api_key)
+    # Lista de prioridad: Del mejor y más barato al alternativo
+    modelos_prioritarios = [
+        'gemini-1.5-flash',       # PRIORIDAD 1: Rápido, Smart, Alta Cuota
+        'gemini-1.5-flash-latest',# PRIORIDAD 2: Variante latest
+        'gemini-1.5-pro',         # PRIORIDAD 3: Más inteligente, menos cuota
+        'gemini-pro'              # PRIORIDAD 4: El clásico estable
+    ]
+    
+    # Intentamos instanciar el modelo sin llamar a la API aún para no gastar
+    # Simplemente devolvemos el string del primero que funcione en ejecución
+    return modelos_prioritarios
+
 # --- INTERFAZ ---
 with st.form(key='bunker_form'):
     raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter):", height=200)
@@ -142,18 +132,31 @@ if submit_button:
         auditor_resp = ""
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT
+        # 1. SCOUT (INTENTO EN CASCADA)
         with col1:
             st.subheader("🦅 Scout")
-            try:
-                genai.configure(api_key=google_key)
-                # USAMOS EL MODELO DETECTADO
-                model_scout = genai.GenerativeModel(model_option)
-                res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
-                scout_resp = res_scout.text
-                st.info(scout_resp)
-            except Exception as e: 
-                st.error(f"Error Scout: {str(e)}")
+            
+            # Lógica de reintento automático
+            modelos_a_probar = get_best_model(google_key)
+            exito_scout = False
+            
+            for modelo_actual in modelos_a_probar:
+                try:
+                    genai.configure(api_key=google_key)
+                    model_scout = genai.GenerativeModel(modelo_actual)
+                    res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
+                    scout_resp = res_scout.text
+                    st.info(f"✅ Análisis ({modelo_actual}):\n{scout_resp}")
+                    exito_scout = True
+                    # Guardamos el modelo que funcionó para el Juez
+                    modelo_funcional = modelo_actual 
+                    break # Si funciona, salimos del bucle
+                except Exception as e:
+                    # Si falla, intentamos el siguiente silenciosamente
+                    continue
+            
+            if not exito_scout:
+                st.error("❌ ERROR CRÍTICO: Ningún modelo de Google respondió. Verifica tu API Key o Región.")
 
         # 2. AUDITOR
         with col2:
@@ -177,9 +180,10 @@ if submit_button:
         # 3. JUEZ
         st.markdown("---")
         st.header("⚖️ SENTENCIA")
-        if scout_resp and "ERROR" not in auditor_resp:
+        if exito_scout and "ERROR" not in auditor_resp:
             try:
-                model_juez = genai.GenerativeModel(model_option)
+                # Usamos el mismo modelo que funcionó para el Scout
+                model_juez = genai.GenerativeModel(modelo_funcional)
                 prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
                 res_juez = model_juez.generate_content(prompt_final)
                 
