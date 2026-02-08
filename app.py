@@ -4,10 +4,10 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v8.7 - COMPATIBLE", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v8.8 - SELECTOR", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
-# --- INICIALIZACIÓN DE MEMORIA (SESSION STATE) ---
+# --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
 
@@ -15,11 +15,27 @@ with st.sidebar:
     st.header("🔑 Llaves de Mando")
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
+    
     st.markdown("---")
-    st.success("SISTEMA: V8.7 (GEMINI-PRO)")
+    st.header("⚙️ Calibración de Arma")
+    # --- AQUÍ ESTÁ LA SOLUCIÓN: ELIGE EL MODELO TÚ MISMO ---
+    model_option = st.selectbox(
+        "🤖 Modelo Google (Scout/Juez):",
+        [
+            "gemini-1.5-flash", 
+            "gemini-1.5-flash-latest",
+            "gemini-pro", 
+            "gemini-1.0-pro",
+            "gemini-1.5-pro",
+            "gemini-2.0-flash-exp"
+        ],
+        index=0 # Por defecto prueba el primero
+    )
+    
+    st.success(f"SISTEMA: V8.8 (USANDO {model_option})")
     st.info("🎯 OBJETIVO: $6,000")
     
-    # --- VISUALIZADOR DE HISTORIAL ---
+    # --- BITÁCORA ---
     st.markdown("---")
     st.header("📂 BITÁCORA")
     if len(st.session_state['bitacora']) > 0:
@@ -171,17 +187,19 @@ if submit_button:
         auditor_response_text = ""
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (CAMBIO A GEMINI-PRO: UNIVERSAL)
+        # 1. SCOUT (CON SELECTOR MANUAL)
         with col1:
             st.subheader("🦅 Scout (Oportunidad)")
             try:
                 genai.configure(api_key=google_key)
-                model_scout = genai.GenerativeModel('gemini-pro')
+                # AQUÍ SE USA LA OPCIÓN QUE ELEGISTE EN EL MENU
+                model_scout = genai.GenerativeModel(model_option)
                 res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
                 scout_response_text = res_scout.text
                 st.info(scout_response_text)
             except Exception as e: 
-                st.error(f"Error Scout: {str(e)}")
+                st.error(f"Error Scout ({model_option}): {str(e)}")
+                st.warning("👉 PRUEBA SELECCIONANDO OTRO MODELO EN LA BARRA LATERAL")
 
         # 2. AUDITOR (OpenAI)
         with col2:
@@ -202,13 +220,13 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_response_text = "ERROR DE CONEXIÓN."
 
-        # 3. JUEZ SUPREMO (CAMBIO A GEMINI-PRO)
+        # 3. JUEZ SUPREMO (CON SELECTOR MANUAL)
         st.markdown("---")
         st.header("⚖️ SENTENCIA FINAL (JUEZ SUPREMO)")
         
         if scout_response_text and "ERROR" not in auditor_response_text and "NO DISPONIBLE" not in auditor_response_text:
             try:
-                model_juez = genai.GenerativeModel('gemini-pro')
+                model_juez = genai.GenerativeModel(model_option)
                 prompt_final = JUEZ_PROMPT + f"\n\nSCOUT:\n{scout_response_text}\n\nAUDITOR:\n{auditor_response_text}"
                 res_juez = model_juez.generate_content(prompt_final)
                 
@@ -235,4 +253,5 @@ if submit_button:
             st.warning("⚠️ Faltan opiniones para dictar sentencia.")
 
 st.markdown("---")
-st.caption("Disciplina Alpha. V8.7 Compatible.")
+st.caption("Disciplina Alpha. V8.8 Selector Manual.")
+
