@@ -4,7 +4,7 @@ import google.generativeai as genai
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v8.2 - CUOTA DESBLOQUEADA", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v8.3 - FIX", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
 # --- INICIALIZACIÓN DE MEMORIA (SESSION STATE) ---
@@ -16,7 +16,7 @@ with st.sidebar:
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     st.markdown("---")
-    st.success("SISTEMA FINAL: V8.2 (CUOTA 1.5 FLASH)")
+    st.success("SISTEMA FINAL: V8.3 (FIX CUOTAS)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- VISUALIZADOR DE HISTORIAL (BITÁCORA) ---
@@ -81,9 +81,10 @@ Tu fuente de verdad absoluta es el TEXTO PEGADO (Raw Data).
    - Filtro Zombi: Si SOT 0-1 (combinados), xG < 0.30 y AP < 1.0.
    - Entrada: Min 30-35 (Under 0.5 1T) o Min 75-80 (Under marcador actual +0.5).
 
-4. ESTRATEGIA DE ESPERA (SWEET SPOT):
+4. ESTRATEGIA DE ESPERA (SWEET SPOT - CORREGIDO):
    - Rango de Oro: Cuota entre 1.80 y 2.10.
-   - Acción: Si la cuota es inferior, el veredicto DEBE ser ESPERAR. Indicar: "Espera a que suba a [X.XX]".
+   - 🚨 REGLA DE VALOR: Si la cuota es MAYOR a 2.10 (ej. 2.70, 3.00), es VALOR PURO. ¡APROBAR! No rechazar por ser alta.
+   - Acción: Solo si la cuota es INFERIOR a 1.80, el veredicto DEBE ser ESPERAR. Indicar: "Espera a que suba a [X.XX]".
    - Mercados: Solo Goles y Córners. Omitir asiáticos.
 
 🏛️ GESTIÓN DE CAPITAL (MANIFIESTO ALPHA 2.0)
@@ -124,7 +125,7 @@ FORMATO OBLIGATORIO:
 4. URGENCIA: [Baja / Media / Alta]
 """
 
-# --- EL AUDITOR MANTIENE LA CORDURA ---
+# --- EL AUDITOR MANTIENE LA CORDURA (CORREGIDO LÓGICA DE CUOTA) ---
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Auditor de Riesgo (Conservador - Freno).
 TU MISIÓN: Proteger el capital a toda costa. Eres el "No" por defecto.
@@ -132,7 +133,10 @@ TU MISIÓN: Proteger el capital a toda costa. Eres el "No" por defecto.
 MENTALIDAD DE BANQUERO:
 - Aplica los vetos de la Abuela con rigor.
 - Si la liga es sospechosa (Reservas/Juveniles), VETA.
-- Si la cuota es mala, manda ESPERAR.
+- ⚠️ IMPORTANTE SOBRE CUOTAS:
+  - Si Cuota < 1.80 -> ESPERAR.
+  - Si Cuota entre 1.80 y 2.10 -> APROBAR (Sweet Spot).
+  - Si Cuota > 2.10 -> ¡APROBAR! Es Valor Extra (EV++). NO RECHAZAR POR SER ALTA.
 - Si el Scout se emociona demasiado, tú pon la calma.
 
 FORMATO OBLIGATORIO:
@@ -145,104 +149,4 @@ FORMATO OBLIGATORIO:
 """
 
 # --- EL JUEZ SUPREMO DICTA SENTENCIA ---
-JUEZ_PROMPT = """
-ACTÚAS COMO EL JUEZ SUPREMO DEL BÚNKER ALPHA.
-Tu tarea es leer el análisis del SCOUT (El Loco Agresivo) y el análisis del AUDITOR (El Banquero Conservador) y dictar sentencia final.
-
-REGLAS DE JERARQUÍA (NO NEGOCIABLES):
-1. Si AUDITOR dice NO -> SENTENCIA: 🔴 NO OPERAR (El riesgo anula la oportunidad).
-2. Si SCOUT dice NO -> SENTENCIA: 🔴 NO OPERAR (No hay momentum).
-3. Si SCOUT dice SÍ y AUDITOR dice ESPERAR -> SENTENCIA: 🟡 ESPERAR (Sweet Spot).
-4. SOLO si AMBOS dicen SÍ -> SENTENCIA: 🟢 DISPARAR.
-
-TU SALIDA DEBE SER SOLO ESTO:
-SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
-MOTIVO: [Resumen de 1 frase explicando por qué ganó esa postura]
-ACCIÓN: [Instrucción precisa para The Boss]
-"""
-
-# --- INTERFAZ DE USUARIO (CON FORMULARIO PARA ATAJO) ---
-with st.form(key='bunker_form'):
-    raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter para ejecutar):", height=200, placeholder="Pega estadísticas de Flashscore/Stake aquí...")
-    submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA (o presiona Ctrl + Enter)")
-
-if submit_button:
-    if not raw_data:
-        st.warning("⚠️ El Raw Data está vacío. Pega la información primero.")
-    elif not google_key:
-        st.error("❌ Falta llave de Google (Scout/Juez).")
-    else:
-        # Variables para guardar las respuestas
-        scout_response_text = ""
-        auditor_response_text = ""
-
-        col1, col2 = st.columns(2)
-        
-        # 1. EJECUCIÓN SCOUT (Gemini - MODELO CORREGIDO 1.5 FLASH)
-        with col1:
-            st.subheader("🦅 Scout (Oportunidad)")
-            try:
-                genai.configure(api_key=google_key)
-                # CAMBIO CLAVE AQUÍ: Usamos gemini-1.5-flash explícitamente
-                model_scout = genai.GenerativeModel('gemini-1.5-flash')
-                res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
-                scout_response_text = res_scout.text
-                st.info(scout_response_text)
-            except Exception as e: 
-                st.error(f"Error Scout: {str(e)}")
-
-        # 2. EJECUCIÓN AUDITOR (OpenAI)
-        with col2:
-            st.subheader("🛡️ Auditor (Riesgo)")
-            if not openai_key:
-                st.warning("⚠️ Auditor Desconectado (Falta API Key o Saldo).")
-                auditor_response_text = "AUDITOR NO DISPONIBLE."
-            else:
-                try:
-                    client = openai.OpenAI(api_key=openai_key)
-                    res_auditor = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
-                    )
-                    auditor_response_text = res_auditor.choices[0].message.content
-                    st.success(auditor_response_text)
-                except Exception as e: 
-                    st.error(f"Error OpenAI: {str(e)}")
-                    auditor_response_text = "ERROR DE CONEXIÓN CON AUDITOR."
-
-        # 3. EJECUCIÓN JUEZ SUPREMO (Gemini sintetiza ambos)
-        st.markdown("---")
-        st.header("⚖️ SENTENCIA FINAL (JUEZ SUPREMO)")
-        
-        if scout_response_text and "ERROR" not in auditor_response_text and "NO DISPONIBLE" not in auditor_response_text:
-            try:
-                # El Juez usa Gemini 1.5 Flash (MODELO CORREGIDO)
-                model_juez = genai.GenerativeModel('gemini-1.5-flash')
-                prompt_final = JUEZ_PROMPT + f"\n\n--- ANÁLISIS SCOUT ---\n{scout_response_text}\n\n--- ANÁLISIS AUDITOR ---\n{auditor_response_text}"
-                res_juez = model_juez.generate_content(prompt_final)
-                
-                # Mostrar resultado
-                juez_texto = res_juez.text
-                st.markdown(f"### {juez_texto}")
-
-                # --- 4. GUARDADO EN BITÁCORA ---
-                veredicto_simple = "⚪ INDEFINIDO"
-                if "🔴" in juez_texto: veredicto_simple = "🔴 NO OPERAR"
-                elif "🟡" in juez_texto: veredicto_simple = "🟡 ESPERAR"
-                elif "🟢" in juez_texto: veredicto_simple = "🟢 DISPARAR"
-                
-                nuevo_registro = {
-                    "hora": datetime.now().strftime("%H:%M:%S"),
-                    "veredicto": veredicto_simple,
-                    "sentencia": juez_texto,
-                    "motivo": "Revisar detalle desplegable."
-                }
-                st.session_state['bitacora'].append(nuevo_registro)
-                
-            except Exception as e:
-                st.error(f"Error del Juez: {str(e)}")
-        else:
-            st.warning("⚠️ El Juez necesita las dos opiniones (Scout + Auditor) para dictar sentencia. Recarga OpenAI para tener el veredicto completo.")
-
-st.markdown("---")
-st.caption("Disciplina Alpha. El Búnker tiene memoria total y ejecución militar.")
+J
