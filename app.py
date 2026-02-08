@@ -3,18 +3,19 @@ import openai
 import google.generativeai as genai
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v7.1 - PERFECCIÓN", layout="wide")
+st.set_page_config(page_title="BUNKER ALPHA v7.2 - JUEZ SUPREMO", layout="wide")
 st.title("🦅 BUNKER ALPHA: Sistema de Inteligencia Alpha")
 
 with st.sidebar:
     st.header("🔑 Llaves de Mando")
     openai_key = st.text_input("OpenAI API Key (Auditor)", type="password")
-    google_key = st.text_input("Google API Key (Scout)", type="password")
+    google_key = st.text_input("Google API Key (Scout & Juez)", type="password")
     st.markdown("---")
-    st.success("SISTEMA FINAL: V7.1")
+    st.success("SISTEMA FINAL: V7.2 (CON JUEZ)")
     st.info("🎯 OBJETIVO: $6,000")
 
 # --- CONSTITUCIÓN ALPHA v7.1 (PERFECCIÓN FINAL: ABUELA + SNIPER + GOBERNANZA) ---
+# (Se mantiene idéntica para Scout y Auditor)
 CONSTITUCION_ALPHA = """
 [ROL PRINCIPAL]
 Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228. Fusión de la disciplina matemática inflexible de un auditor de riesgos y la visión estratégica de un gestor de fondos de cobertura.
@@ -105,36 +106,84 @@ FORMATO OBLIGATORIO:
 ❌ PROHIBIDO: Storytelling, justificaciones largas, celebrar goles, ajustar criterios para "no perder la oportunidad".
 """
 
+# --- NUEVO: PROMPT PARA EL JUEZ SUPREMO ---
+JUEZ_PROMPT = """
+ACTÚAS COMO EL JUEZ SUPREMO DEL BÚNKER ALPHA.
+Tu tarea es leer el análisis del SCOUT (Agresivo) y el análisis del AUDITOR (Conservador) y dictar sentencia final.
+
+REGLAS DE JERARQUÍA (NO NEGOCIABLES):
+1. Si AUDITOR dice NO -> SENTENCIA: 🔴 NO OPERAR (El riesgo anula la oportunidad).
+2. Si SCOUT dice NO -> SENTENCIA: 🔴 NO OPERAR (No hay momentum).
+3. Si SCOUT dice SÍ y AUDITOR dice ESPERAR -> SENTENCIA: 🟡 ESPERAR (Sweet Spot).
+4. SOLO si AMBOS dicen SÍ -> SENTENCIA: 🟢 DISPARAR.
+
+TU SALIDA DEBE SER SOLO ESTO:
+SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
+MOTIVO: [Resumen de 1 frase explicando por qué ganó esa postura]
+ACCIÓN: [Instrucción precisa para The Boss]
+"""
+
 # --- INTERFAZ DE USUARIO ---
-raw_data = st.text_area("📥 PEGA EL RAW DATA V7.1:", height=200, placeholder="Pega estadísticas de Flashscore/Stake aquí...")
+raw_data = st.text_area("📥 PEGA EL RAW DATA:", height=200, placeholder="Pega estadísticas de Flashscore/Stake aquí...")
 
 if st.button("⚡ EJECUTAR SISTEMA"):
     if not google_key:
-        st.error("❌ Falta llave del Scout (Google).")
+        st.error("❌ Falta llave de Google (Scout/Juez).")
     else:
+        # Variables para guardar las respuestas
+        scout_response_text = ""
+        auditor_response_text = ""
+
         col1, col2 = st.columns(2)
+        
+        # 1. EJECUCIÓN SCOUT (Gemini)
         with col1:
             st.subheader("🦅 Scout (Oportunidad)")
             try:
                 genai.configure(api_key=google_key)
-                model = genai.GenerativeModel('gemini-flash-latest')
-                res = model.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
-                st.success(res.text)
-            except Exception as e: st.error(f"Error Scout: {str(e)}")
+                model_scout = genai.GenerativeModel('gemini-flash-latest')
+                res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
+                scout_response_text = res_scout.text
+                st.info(scout_response_text)
+            except Exception as e: 
+                st.error(f"Error Scout: {str(e)}")
 
+        # 2. EJECUCIÓN AUDITOR (OpenAI)
         with col2:
             st.subheader("🛡️ Auditor (Riesgo)")
             if not openai_key:
-                st.info("⌛ Auditor esperando conexión de API...")
+                st.warning("⚠️ Auditor Desconectado (Falta API Key o Saldo).")
+                auditor_response_text = "AUDITOR NO DISPONIBLE."
             else:
                 try:
                     client = openai.OpenAI(api_key=openai_key)
-                    res = client.chat.completions.create(
+                    res_auditor = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
                     )
-                    st.info(res.choices[0].message.content)
-                except Exception as e: st.error("❌ Error de conexión o saldo en OpenAI.")
+                    auditor_response_text = res_auditor.choices[0].message.content
+                    st.success(auditor_response_text)
+                except Exception as e: 
+                    st.error(f"Error OpenAI: {str(e)}")
+                    auditor_response_text = "ERROR DE CONEXIÓN CON AUDITOR."
+
+        # 3. EJECUCIÓN JUEZ SUPREMO (Gemini sintetiza ambos)
+        st.markdown("---")
+        st.header("⚖️ SENTENCIA FINAL (JUEZ SUPREMO)")
+        
+        if scout_response_text and "ERROR" not in auditor_response_text and "NO DISPONIBLE" not in auditor_response_text:
+            try:
+                # El Juez usa Gemini (más rápido/barato) para leer a ambos
+                model_juez = genai.GenerativeModel('gemini-flash-latest')
+                prompt_final = JUEZ_PROMPT + f"\n\n--- ANÁLISIS SCOUT ---\n{scout_response_text}\n\n--- ANÁLISIS AUDITOR ---\n{auditor_response_text}"
+                res_juez = model_juez.generate_content(prompt_final)
+                
+                # Mostrar resultado en grande
+                st.markdown(f"### {res_juez.text}")
+            except Exception as e:
+                st.error(f"Error del Juez: {str(e)}")
+        else:
+            st.warning("⚠️ El Juez necesita las dos opiniones (Scout + Auditor) para dictar sentencia. Recarga OpenAI para tener el veredicto completo.")
 
 st.markdown("---")
 st.caption("Disciplina Alpha. El Búnker tiene memoria total y ejecución militar.")
