@@ -2,10 +2,11 @@ import streamlit as st
 import openai
 import google.generativeai as genai
 from datetime import datetime, timedelta
+import time
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v15.2 - TARGET LOCK", layout="wide")
-st.title("🦅 BUNKER ALPHA: Corte Suprema (TARGET LOCK)")
+st.set_page_config(page_title="BUNKER ALPHA v16.0 - UNIFIED ELITE", layout="wide")
+st.title("🦅 BUNKER ALPHA: Corte Suprema (UNIFIED ELITE)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
@@ -17,9 +18,9 @@ with st.sidebar:
     google_key = st.text_input("Google API Key (Scout & Juez 1)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ SELECCIÓN DE ARMA (SCOUT)")
+    st.header("⚙️ SELECCIÓN DE ARMA (GEMINI)")
     
-    # --- LÓGICA DE DETECCIÓN TOTAL ---
+    # --- LÓGICA DE DETECCIÓN INTELIGENTE ---
     modelo_google_seleccionado = None
     
     if google_key:
@@ -33,7 +34,7 @@ with st.sidebar:
             if lista_modelos:
                 st.success(f"✅ Google Conectado ({len(lista_modelos)} modelos).")
                 
-                # BUSQUEDA INTELIGENTE DE MODELOS
+                # BUSQUEDA INTELIGENTE: ROBOTICS O FLASH
                 index_favorito = 0
                 for i, nombre in enumerate(lista_modelos):
                     if "robotics" in nombre:
@@ -42,11 +43,13 @@ with st.sidebar:
                     elif "flash-latest" in nombre and index_favorito == 0:
                         index_favorito = i
 
+                # UN SOLO SELECTOR PARA TODO EL BANDO GOOGLE
                 modelo_google_seleccionado = st.selectbox(
-                    "🤖 Scout (Google):",
+                    "🤖 Modelo Élite (Scout + Juez 1):",
                     lista_modelos,
                     index=index_favorito
                 )
+                st.caption(f"Este modelo ejecutará el Análisis y la Primera Sentencia.")
             else:
                 st.error("❌ Llave válida, pero sin modelos.")
         except Exception as e:
@@ -55,10 +58,10 @@ with st.sidebar:
         st.warning("⚠️ Falta Google Key.")
 
     st.markdown("---")
-    st.success("SISTEMA: V15.2 (TARGET LOCK)")
+    st.success("SISTEMA: V16.0 (UNIFIED)")
     st.info("🎯 OBJETIVO: $6,000")
     
-    # --- BITÁCORA MEJORADA ---
+    # --- BITÁCORA ---
     st.markdown("---")
     if st.button("🗑️ Borrar Historial"):
         st.session_state['bitacora'] = []
@@ -68,9 +71,7 @@ with st.sidebar:
         st.write("---")
         st.subheader("📂 BITÁCORA DE GUERRA")
         for i, registro in enumerate(reversed(st.session_state['bitacora'])):
-            # TÍTULO LIMPIO CON NOMBRE DEL PARTIDO
             titulo_log = f"#{len(st.session_state['bitacora'])-i} | {registro['hora']} | {registro['veredicto']} | {registro.get('partido', 'Desconocido')}"
-            
             with st.expander(titulo_log):
                 st.markdown(f"**⚽ PARTIDO:** {registro.get('partido', 'N/A')}")
                 st.markdown(f"**⚖️ SENTENCIA:**\n{registro['sentencia']}")
@@ -109,7 +110,6 @@ Input Obligatorio: Marcador, Minuto, AP, SOT, Córners, Tarjetas, Cuota.
 - Solo mercados: Ganador (1X2), Goles (Over/Under), Córners.
 """
 
-# --- SCOUT PROMPT MODIFICADO PARA EXTRAER EL NOMBRE ---
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Scout de Oportunidad (Agresivo).
 MENTALIDAD: Acelerador. Si ves asedio, propón disparo.
@@ -179,7 +179,7 @@ if submit_button:
         
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (GOOGLE)
+        # 1. SCOUT (GOOGLE - MODELO SELECCIONADO)
         with col1:
             st.subheader("🦅 Scout (Google)")
             if modelo_google_seleccionado:
@@ -189,7 +189,7 @@ if submit_button:
                     res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
                     scout_resp = res_scout.text
                     
-                    # --- EXTRACCIÓN INTELIGENTE DEL NOMBRE ---
+                    # Extracción nombre
                     try:
                         for linea in scout_resp.split('\n'):
                             if "OBJETIVO:" in linea:
@@ -201,7 +201,7 @@ if submit_button:
                     st.info(scout_resp)
                 except Exception as e:
                     st.error(f"Error Gemini Scout: {e}")
-            elif openai_key: 
+            elif openai_key: # Fallback OpenAI
                  try:
                     client = openai.OpenAI(api_key=openai_key)
                     res_scout = client.chat.completions.create(
@@ -209,8 +209,6 @@ if submit_button:
                         messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     scout_resp = res_scout.choices[0].message.content
-                    
-                    # Extracción fallback OpenAI
                     try:
                         for linea in scout_resp.split('\n'):
                             if "OBJETIVO:" in linea:
@@ -218,7 +216,6 @@ if submit_button:
                                 break
                     except:
                         pass
-
                     st.warning(f"⚠️ Scout (OpenAI):\n{scout_resp}")
                  except Exception as e:
                     st.error(f"Error OpenAI: {e}")
@@ -242,11 +239,17 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_resp = "ERROR."
 
+        # SI HAY SCOUT Y AUDITOR, EJECUTAMOS LA CORTE
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
-            # --- JUEZ 1 (GEMINI) ---
+            # --- JUEZ 1 (GEMINI) - INTENTO CON MISMO MODELO + FALLBACK ---
             st.header("👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI)")
+            
+            # Intentamos primero con el modelo ÉLITE (Robotics)
+            intento_exitoso_juez1 = False
+            
+            # 1er INTENTO: Modelo Élite
             try:
                 if modelo_google_seleccionado:
                     genai.configure(api_key=google_key)
@@ -254,13 +257,29 @@ if submit_button:
                     prompt_j1 = JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
                     res_j1 = model_juez1.generate_content(prompt_j1)
                     juez1_resp = res_j1.text
-                    st.info(juez1_resp)
-                else:
-                    juez1_resp = "NO DISPONIBLE"
-                    st.warning("Saltando Juez 1 (Google no disponible)")
+                    intento_exitoso_juez1 = True
             except Exception as e:
-                st.error(f"Error Juez 1: {e}")
-                juez1_resp = "ERROR"
+                # Si falla el élite, capturamos el error silenciosamente
+                pass 
+            
+            # 2do INTENTO: Si falló el Élite, usamos FLASH (Backup)
+            if not intento_exitoso_juez1:
+                try:
+                    # Buscamos un modelo Flash estándar en la lista o forzamos el nombre
+                    model_backup = genai.GenerativeModel('gemini-1.5-flash')
+                    prompt_j1 = JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                    res_j1 = model_backup.generate_content(prompt_j1)
+                    juez1_resp = res_j1.text
+                    # Avisamos al usuario que se usó el respaldo
+                    st.caption("⚠️ Nota: Juez 1 usó el canal de respaldo (Flash) por congestión del modelo Élite.")
+                    intento_exitoso_juez1 = True
+                except:
+                     juez1_resp = "NO DISPONIBLE (Fallo en Juez 1)"
+
+            if intento_exitoso_juez1:
+                st.info(juez1_resp)
+            else:
+                st.warning(juez1_resp)
 
             st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
 
@@ -292,7 +311,7 @@ if submit_button:
                     else:
                         st.warning(texto_supremo)
 
-                    # --- GUARDADO CON HORA DE QUITO (UTC-5) Y NOMBRE REAL ---
+                    # HORA QUITO
                     hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
 
                     veredicto = "⚪"
@@ -302,7 +321,7 @@ if submit_button:
                     
                     st.session_state['bitacora'].append({
                         "hora": hora_quito,
-                        "partido": nombre_partido_detectado, # AQUÍ ESTÁ EL NOMBRE REAL
+                        "partido": nombre_partido_detectado,
                         "veredicto": veredicto,
                         "sentencia": texto_supremo,
                         "motivo": "Revisar expediente completo."
