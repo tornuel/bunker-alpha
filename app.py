@@ -5,48 +5,55 @@ from datetime import datetime, timedelta
 import time
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v17.0 - HYDRA", layout="wide")
-st.title("🦅 BUNKER ALPHA: Corte Suprema (SISTEMA HYDRA)")
+st.set_page_config(page_title="BUNKER ALPHA v17.1 - DYNAMIC HYDRA", layout="wide")
+st.title("🦅 BUNKER ALPHA: Corte Suprema (HYDRA DINÁMICO)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
 
-# --- NÚCLEO HYDRA: SISTEMA DE ROTACIÓN AUTOMÁTICA ---
+# --- NÚCLEO HYDRA DINÁMICO ---
 def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     """
-    Intenta ejecutar la orden con el modelo Titular.
-    Si falla (por cuota o error), activa automáticamente a los Suplentes.
-    Retorna: (Texto Respuesta, Mensaje de Estado, Éxito Boolean)
+    1. Intenta con el TITULAR.
+    2. Si falla, busca DINÁMICAMENTE en tu cuenta qué modelos 'Flash' o 'Pro'
+       existen realmente y los usa de suplentes.
     """
     genai.configure(api_key=google_key)
     
-    # EJÉRCITO DE RESERVA (Orden de Batalla)
-    # 1. Tu Titular
-    # 2. El Tanque (Flash 1.5 - 1500 usos)
-    # 3. El Cerebro (Pro 1.5)
-    # 4. El Veterano (Pro 1.0)
-    
+    # 1. DEFINIR EL EJÉRCITO DE BATALLA
     lista_batalla = [modelo_preferido]
-    reservas = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]
     
-    # Añadimos reservas asegurando que no se repita el titular
-    for r in reservas:
-        if r != modelo_preferido:
-            lista_batalla.append(r)
-            
+    # 2. RECLUTAMIENTO DE SUPLENTES (DINÁMICO)
+    # Pedimos a Google la lista REAL de lo que tienes activado
+    try:
+        todos_los_modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Buscamos refuerzos 'Flash' (Tanques) y 'Pro' (Cerebros)
+        suplentes_flash = [m for m in todos_los_modelos if "flash" in m and m != modelo_preferido]
+        suplentes_pro = [m for m in todos_los_modelos if "pro" in m and m != modelo_preferido]
+        
+        # Orden de batalla: Titular -> Flashes -> Pros
+        lista_batalla.extend(suplentes_flash)
+        lista_batalla.extend(suplentes_pro)
+        
+    except Exception as e:
+        # Si falla el reclutamiento, intentamos con nombres genéricos por si acaso
+        lista_batalla.append("models/gemini-1.5-flash")
+    
     errores_log = []
     
+    # 3. ATAQUE EN OLEADAS
     for modelo_actual in lista_batalla:
         try:
             # INTENTO DE DISPARO
             model_instance = genai.GenerativeModel(modelo_actual)
             response = model_instance.generate_content(prompt)
             
-            # SI LLEGAMOS AQUÍ, FUE UN ÉXITO
+            # ÉXITO
             texto = response.text
             
-            # Diagnóstico
+            # Diagnóstico para el usuario
             if modelo_actual == modelo_preferido:
                 status = f"✅ Ejecutado por TITULAR ({modelo_actual})"
                 tipo_aviso = "success"
@@ -58,11 +65,11 @@ def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
             
         except Exception as e:
             # SI FALLA, REGISTRAMOS Y PASAMOS AL SIGUIENTE
-            errores_log.append(f"{modelo_actual}: {str(e)}")
-            continue # Salta al siguiente soldado
+            errores_log.append(f"[{modelo_actual}]: {str(e)}")
+            continue 
             
-    # SI SALIMOS DEL BUCLE, TODOS HAN MUERTO
-    return f"Fallo Total del Sistema. Reporte: {errores_log}", "❌ ERROR CRÍTICO", "error", False
+    # SI SALIMOS DEL BUCLE, ES EL FIN
+    return f"Fallo Total del Sistema. Ningún modelo respondió. Reporte: {errores_log}", "❌ ERROR CRÍTICO", "error", False
 
 # --- BARRA LATERAL ---
 with st.sidebar:
@@ -78,6 +85,7 @@ with st.sidebar:
     if google_key:
         try:
             genai.configure(api_key=google_key)
+            # OBTENEMOS LA LISTA REAL PARA EL MENÚ
             lista_modelos = []
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
@@ -86,13 +94,14 @@ with st.sidebar:
             if lista_modelos:
                 st.success(f"✅ Google Conectado")
                 
-                # BUSCADOR INTELIGENTE DE TU FAVORITO
+                # BUSCADOR INTELIGENTE
                 index_favorito = 0
                 for i, nombre in enumerate(lista_modelos):
+                    # Prioridad: Robotics > 2.5 > Flash Latest
                     if "robotics" in nombre:
                         index_favorito = i
                         break
-                    elif "2.5" in nombre and index_favorito == 0: # Prioridad 2: El nuevo 2.5
+                    elif "2.5" in nombre and index_favorito == 0:
                         index_favorito = i
                     elif "flash-latest" in nombre and index_favorito == 0:
                         index_favorito = i
@@ -101,7 +110,7 @@ with st.sidebar:
                     "🤖 Modelo Comandante:",
                     lista_modelos,
                     index=index_favorito,
-                    help="Si este modelo se agota, HYDRA activará automáticamente a Gemini 1.5 Flash."
+                    help="Elige tu favorito. Si falla, HYDRA buscará automáticamente cualquier modelo Flash disponible en tu cuenta."
                 )
             else:
                 st.error("❌ Sin modelos disponibles.")
@@ -111,7 +120,7 @@ with st.sidebar:
         st.warning("⚠️ Falta Google Key.")
 
     st.markdown("---")
-    st.success("SISTEMA: V17.0 (HYDRA)")
+    st.success("SISTEMA: V17.1 (HYDRA DINÁMICO)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- BITÁCORA ---
@@ -246,7 +255,7 @@ if submit_button:
                 
                 if exito:
                     scout_resp = texto
-                    # Feedback de estado (Si hubo rescate o no)
+                    # Feedback de estado
                     if tipo == "success": st.caption(status)
                     else: st.warning(status)
                     
@@ -282,91 +291,4 @@ if submit_button:
             st.subheader("🛡️ Auditor (OpenAI)")
             if not openai_key:
                 st.warning("⚠️ Sin OpenAI Key.")
-                auditor_resp = "NO DISPONIBLE."
-            else:
-                try:
-                    client = openai.OpenAI(api_key=openai_key)
-                    res_auditor = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
-                    )
-                    auditor_resp = res_auditor.choices[0].message.content
-                    st.success(auditor_resp)
-                except Exception as e: 
-                    st.error(f"Error OpenAI: {str(e)}")
-                    auditor_resp = "ERROR."
-
-        # ==========================================
-        # 3. JUECES (SOLO SI HAY DATOS)
-        # ==========================================
-        if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
-            st.markdown("---")
-            
-            # --- JUEZ 1 (SISTEMA HYDRA - INDEPENDIENTE) ---
-            st.header("👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI HYDRA)")
-            
-            if modelo_titular:
-                # HYDRA ACTÚA DE NUEVO (Puede que aquí rote si el Scout gastó la última bala)
-                texto_j1, status_j1, tipo_j1, exito_j1 = generar_respuesta_blindada(
-                    google_key, modelo_titular, 
-                    JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
-                )
-                
-                if exito_j1:
-                    juez1_resp = texto_j1
-                    if tipo_j1 == "success": st.caption(status_j1)
-                    else: st.warning(status_j1)
-                    st.info(juez1_resp)
-                else:
-                    juez1_resp = "NO DISPONIBLE"
-                    st.error(texto_j1)
-            else:
-                juez1_resp = "NO DISPONIBLE"
-
-            st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
-
-            # --- JUEZ 2 (OPENAI - SUPREMO) ---
-            st.header("🏛️ JUEZ 2: CORTE SUPREMA (OPENAI)")
-            try:
-                if openai_key:
-                    client = openai.OpenAI(api_key=openai_key)
-                    expediente_completo = f"""
-                    SCOUT (Ataque): {scout_resp}
-                    AUDITOR (Riesgo): {auditor_resp}
-                    JUEZ PRELIMINAR (Opinión): {juez1_resp}
-                    """
-                    
-                    res_supremo = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": "ERES LA CORTE SUPREMA. REVISA EL EXPEDIENTE COMPLETO."}, 
-                            {"role": "user", "content": JUEZ_SUPREMO_PROMPT + "\n\nEXPEDIENTE:\n" + expediente_completo}
-                        ]
-                    )
-                    texto_supremo = res_supremo.choices[0].message.content
-                    
-                    # VISUALIZACIÓN FINAL
-                    if "🔴" in texto_supremo:
-                        st.error(texto_supremo)
-                    elif "🟢" in texto_supremo:
-                        st.success(texto_supremo)
-                    else:
-                        st.warning(texto_supremo)
-
-                    # HORA QUITO (UTC-5)
-                    hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
-
-                    veredicto = "⚪"
-                    if "🔴" in texto_supremo: veredicto = "🔴 NO OPERAR"
-                    elif "🟡" in texto_supremo: veredicto = "🟡 ESPERAR"
-                    elif "🟢" in texto_supremo: veredicto = "🟢 DISPARAR"
-                    
-                    st.session_state['bitacora'].append({
-                        "hora": hora_quito,
-                        "partido": nombre_partido_detectado,
-                        "veredicto": veredicto,
-                        "sentencia": texto_supremo,
-                        "motivo": "Revisar expediente completo."
-                    })
-            except Exception as e:
-                st.error(f"Error Corte Suprema: {str(e)}")
+                auditor_resp = "NO DISPON
