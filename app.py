@@ -2,11 +2,10 @@ import streamlit as st
 import openai
 import google.generativeai as genai
 from datetime import datetime, timedelta
-import time
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v16.0 - UNIFIED ELITE", layout="wide")
-st.title("🦅 BUNKER ALPHA: Corte Suprema (UNIFIED ELITE)")
+st.set_page_config(page_title="BUNKER ALPHA v16.1 - MIRROR", layout="wide")
+st.title("🦅 BUNKER ALPHA: Corte Suprema (MODO ESPEJO)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
@@ -20,7 +19,7 @@ with st.sidebar:
     st.markdown("---")
     st.header("⚙️ SELECCIÓN DE ARMA (GEMINI)")
     
-    # --- LÓGICA DE DETECCIÓN INTELIGENTE ---
+    # --- LÓGICA DE DETECCIÓN ---
     modelo_google_seleccionado = None
     
     if google_key:
@@ -34,7 +33,7 @@ with st.sidebar:
             if lista_modelos:
                 st.success(f"✅ Google Conectado ({len(lista_modelos)} modelos).")
                 
-                # BUSQUEDA INTELIGENTE: ROBOTICS O FLASH
+                # BUSQUEDA INTELIGENTE
                 index_favorito = 0
                 for i, nombre in enumerate(lista_modelos):
                     if "robotics" in nombre:
@@ -43,13 +42,16 @@ with st.sidebar:
                     elif "flash-latest" in nombre and index_favorito == 0:
                         index_favorito = i
 
-                # UN SOLO SELECTOR PARA TODO EL BANDO GOOGLE
+                # UN SOLO SELECTOR QUE GOBIERNA TODO
                 modelo_google_seleccionado = st.selectbox(
-                    "🤖 Modelo Élite (Scout + Juez 1):",
+                    "🤖 Modelo ÚNICO (Scout + Juez 1):",
                     lista_modelos,
                     index=index_favorito
                 )
-                st.caption(f"Este modelo ejecutará el Análisis y la Primera Sentencia.")
+                
+                if "2.5" in modelo_google_seleccionado or "robotics" in modelo_google_seleccionado:
+                    st.warning(f"⚠️ ¡OJO! El modelo {modelo_google_seleccionado} suele tener límite de 20 usos/día. Gastarás 2 por análisis.")
+                
             else:
                 st.error("❌ Llave válida, pero sin modelos.")
         except Exception as e:
@@ -58,7 +60,7 @@ with st.sidebar:
         st.warning("⚠️ Falta Google Key.")
 
     st.markdown("---")
-    st.success("SISTEMA: V16.0 (UNIFIED)")
+    st.success("SISTEMA: V16.1 (MIRROR)")
     st.info("🎯 OBJETIVO: $6,000")
     
     # --- BITÁCORA ---
@@ -179,12 +181,13 @@ if submit_button:
         
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (GOOGLE - MODELO SELECCIONADO)
+        # 1. SCOUT (USA MODELO SELECCIONADO)
         with col1:
             st.subheader("🦅 Scout (Google)")
             if modelo_google_seleccionado:
                 try:
                     genai.configure(api_key=google_key)
+                    # INSTANCIA DIRECTA DEL MODELO ELEGIDO
                     model_scout = genai.GenerativeModel(modelo_google_seleccionado)
                     res_scout = model_scout.generate_content(SCOUT_PROMPT + "\nDATOS:\n" + raw_data)
                     scout_resp = res_scout.text
@@ -200,7 +203,7 @@ if submit_button:
                     
                     st.info(scout_resp)
                 except Exception as e:
-                    st.error(f"Error Gemini Scout: {e}")
+                    st.error(f"Error Gemini Scout ({modelo_google_seleccionado}): {e}")
             elif openai_key: # Fallback OpenAI
                  try:
                     client = openai.OpenAI(api_key=openai_key)
@@ -209,13 +212,6 @@ if submit_button:
                         messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     scout_resp = res_scout.choices[0].message.content
-                    try:
-                        for linea in scout_resp.split('\n'):
-                            if "OBJETIVO:" in linea:
-                                nombre_partido_detectado = linea.replace("OBJETIVO:", "").strip()
-                                break
-                    except:
-                        pass
                     st.warning(f"⚠️ Scout (OpenAI):\n{scout_resp}")
                  except Exception as e:
                     st.error(f"Error OpenAI: {e}")
@@ -239,47 +235,28 @@ if submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_resp = "ERROR."
 
-        # SI HAY SCOUT Y AUDITOR, EJECUTAMOS LA CORTE
+        # CONTINUAR SOLO SI HAY DATOS
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
-            # --- JUEZ 1 (GEMINI) - INTENTO CON MISMO MODELO + FALLBACK ---
-            st.header("👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI)")
+            # --- JUEZ 1 (GEMINI - USA EL MISMO MODELO SELECCIONADO) ---
+            st.header(f"👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI - {modelo_google_seleccionado})")
             
-            # Intentamos primero con el modelo ÉLITE (Robotics)
-            intento_exitoso_juez1 = False
-            
-            # 1er INTENTO: Modelo Élite
             try:
                 if modelo_google_seleccionado:
                     genai.configure(api_key=google_key)
+                    # INSTANCIA DIRECTA DEL MISMO MODELO
                     model_juez1 = genai.GenerativeModel(modelo_google_seleccionado)
                     prompt_j1 = JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
                     res_j1 = model_juez1.generate_content(prompt_j1)
                     juez1_resp = res_j1.text
-                    intento_exitoso_juez1 = True
+                    st.info(juez1_resp)
+                else:
+                    juez1_resp = "NO DISPONIBLE"
             except Exception as e:
-                # Si falla el élite, capturamos el error silenciosamente
-                pass 
-            
-            # 2do INTENTO: Si falló el Élite, usamos FLASH (Backup)
-            if not intento_exitoso_juez1:
-                try:
-                    # Buscamos un modelo Flash estándar en la lista o forzamos el nombre
-                    model_backup = genai.GenerativeModel('gemini-1.5-flash')
-                    prompt_j1 = JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
-                    res_j1 = model_backup.generate_content(prompt_j1)
-                    juez1_resp = res_j1.text
-                    # Avisamos al usuario que se usó el respaldo
-                    st.caption("⚠️ Nota: Juez 1 usó el canal de respaldo (Flash) por congestión del modelo Élite.")
-                    intento_exitoso_juez1 = True
-                except:
-                     juez1_resp = "NO DISPONIBLE (Fallo en Juez 1)"
-
-            if intento_exitoso_juez1:
-                st.info(juez1_resp)
-            else:
-                st.warning(juez1_resp)
+                # AQUÍ SALDRÁ EL ERROR EXACTO SI FALLA (EJ: QUOTA EXCEEDED)
+                st.error(f"Error Juez 1 ({modelo_google_seleccionado}): {e}")
+                juez1_resp = "ERROR"
 
             st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
 
