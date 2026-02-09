@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 import time
 import re
 
-# --- CONFIGURACIÓN DE PÁGINA (PROFESIONAL) ---
-st.set_page_config(page_title="TRADING OPS: CONTROL CENTER", layout="wide")
-st.title("🦅 TRADING OPS: SISTEMA DE DECISIÓN (V19.0 - UNLIMITED)")
+# --- CONFIGURACIÓN DE PÁGINA (ESTILO INSTITUCIONAL) ---
+st.set_page_config(page_title="SISTEMA DE TRADING INSTITUCIONAL", layout="wide")
+st.title("🏛️ SISTEMA DE TRADING INSTITUCIONAL (V19.1)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
@@ -22,59 +22,46 @@ def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     genai.configure(api_key=google_key)
     
     # 1. DEFINIR ORDEN DE BATALLA (JERARQUÍA DE ÉLITE)
-    # Empezamos con el elegido (Latest), luego el Pro estable, luego los Flash de emergencia.
     lista_batalla = [modelo_preferido]
     
     try:
-        # Obtenemos lista real disponible en tu cuenta
         todos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # Estrategia de Respaldo:
-        # Si falla el Latest, busca el Pro normal.
         if "gemini-1.5-pro-latest" in modelo_preferido:
              respaldo_pro = [m for m in todos if "gemini-1.5-pro" in m and "latest" not in m]
              lista_batalla.extend(respaldo_pro)
         
-        # Si fallan los Pros, vamos a los Flash (Emergencia)
         respaldo_flash = [m for m in todos if "flash" in m]
         lista_batalla.extend(respaldo_flash)
-        
-        # Eliminamos duplicados manteniendo orden
         lista_batalla = list(dict.fromkeys(lista_batalla))
         
     except:
-        # Fallback ciego si falla la lista
         lista_batalla = [modelo_preferido, "models/gemini-1.5-pro", "models/gemini-1.5-flash"]
     
     errores_log = []
     
-    # 2. EJECUCIÓN SECUENCIAL CON MANEJO DE ERRORES VISUAL
+    # 2. EJECUCIÓN SECUENCIAL
     for modelo_actual in lista_batalla:
         try:
             model_instance = genai.GenerativeModel(modelo_actual)
             response = model_instance.generate_content(prompt)
             texto = response.text
             
-            # DIAGNÓSTICO DE EJECUCIÓN
             if modelo_actual == modelo_preferido:
-                status = f"✅ Ejecutado por VANGUARDIA ({modelo_actual})"
+                status = f"✅ Ejecutado por MOTOR PRINCIPAL ({modelo_actual})"
                 tipo_aviso = "success"
             else:
-                status = f"⚠️ VANGUARDIA CAÍDA. Rescatado por ({modelo_actual})"
+                status = f"⚠️ MOTOR PRINCIPAL CAÍDO. Respaldo activado ({modelo_actual})"
                 tipo_aviso = "warning"
                 
             return texto, status, tipo_aviso, True
             
         except Exception as e:
             error_str = str(e)
-            
-            # --- DETECTOR DE RATE LIMIT (429) ---
-            # Aunque pagues, a veces Google pide pausa. Esto lo maneja elegante.
             if "429" in error_str or "Quota exceeded" in error_str:
                 match = re.search(r"retry in (\d+\.?\d*)s", error_str)
                 segundos_espera = float(match.group(1)) + 1 if match else 5
                 
-                # BARRA DE CARGA (NO ERROR ROJO)
                 placeholder = st.empty()
                 with placeholder.container():
                     st.warning(f"⏳ Recargando API ({modelo_actual})... Espera {int(segundos_espera)}s")
@@ -85,22 +72,21 @@ def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
                 placeholder.empty()
                 
                 errores_log.append(f"[{modelo_actual}]: Rate Limit (Esperado)")
-                continue # Pasa al siguiente modelo o reintenta
-            
+                continue 
             else:
                 errores_log.append(f"[{modelo_actual}]: {error_str}")
                 continue 
             
     return f"Fallo Total del Sistema. Logs: {errores_log}", "❌ ERROR CRÍTICO", "error", False
 
-# --- UI SIDEBAR (CONTROL MANUAL) ---
+# --- UI SIDEBAR ---
 with st.sidebar:
-    st.header("🔑 LLAVES DE ACCESO")
+    st.header("🔑 CREDENCIALES")
     openai_key = st.text_input("OpenAI API Key (Auditor & Juez Supremo)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez 1)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ CONFIGURACIÓN TÁCTICA")
+    st.header("⚙️ CONFIGURACIÓN DEL MOTOR")
     
     modelo_titular = None
     
@@ -113,36 +99,23 @@ with st.sidebar:
                     lista_modelos.append(m.name)
             
             if lista_modelos:
-                st.success(f"✅ Google Conectado (Billing Activado)")
+                st.success(f"✅ Google Cloud: CONECTADO")
                 
-                # --- AUTO-SELECTOR INTELIGENTE (MODO PRO) ---
-                # Prioridad absoluta a PRO-LATEST
+                # AUTO-SELECTOR PRO
                 index_favorito = 0
                 match_found = False
-                
-                # 1. Buscamos el mejor modelo posible
                 for i, nombre in enumerate(lista_modelos):
                     if "gemini-1.5-pro-latest" in nombre:
-                        index_favorito = i
-                        match_found = True
-                        break
-                
-                # 2. Si no está el latest, buscamos el pro normal
+                        index_favorito = i; match_found = True; break
                 if not match_found:
                     for i, nombre in enumerate(lista_modelos):
                         if "gemini-1.5-pro" in nombre and "latest" not in nombre:
-                            index_favorito = i
-                            match_found = True
-                            break
+                            index_favorito = i; match_found = True; break
                 
-                # 3. Si no hay pro, el que sea
-                if not match_found: index_favorito = 0
-
                 modelo_titular = st.selectbox(
-                    "🤖 Cerebro Principal (Override):",
+                    "🤖 Modelo Seleccionado:",
                     lista_modelos,
-                    index=index_favorito,
-                    help="El sistema selecciona automáticamente el mejor modelo PRO. Úsalo solo si necesitas cambiarlo manualmente."
+                    index=index_favorito
                 )
             else:
                 st.error("❌ Sin modelos disponibles.")
@@ -152,18 +125,16 @@ with st.sidebar:
         st.warning("⚠️ Ingrese Google Key.")
 
     st.markdown("---")
-    st.info("ESTADO: UNLIMITED (V19.0)")
-    st.success("🎯 META: $6,000")
+    st.info("ESTADO: ACTIVO (V19.1)")
     
-    # --- BITÁCORA ---
     st.markdown("---")
-    if st.button("🗑️ Limpiar Registros"):
+    if st.button("🗑️ Limpiar Bitácora"):
         st.session_state['bitacora'] = []
         st.rerun()
     
     if len(st.session_state['bitacora']) > 0:
         st.write("---")
-        st.subheader("📂 REGISTRO DE OPERACIONES")
+        st.subheader("📂 HISTORIAL")
         for i, registro in enumerate(reversed(st.session_state['bitacora'])):
             titulo_log = f"#{len(st.session_state['bitacora'])-i} | {registro['hora']} | {registro['veredicto']} | {registro.get('partido', 'Desconocido')}"
             with st.expander(titulo_log):
@@ -172,23 +143,19 @@ with st.sidebar:
 
 # --- CEREBRO DEL SISTEMA (PROMPTS V6.0) ---
 CONSTITUCION_ALPHA = """
-📜 PROMPT MADRE — COMITÉ ALPHA (V6.0: INTEGRACIÓN TOTAL)
-(Gobernanza del Sistema | Inalterable durante la sesión)
-
+📜 PROMPT MADRE — PROTOCOLO INSTITUCIONAL (V6.0)
 [ROL PRINCIPAL]
 Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228. 
 Fusión de la disciplina matemática inflexible de un auditor de riesgos y la visión estratégica de un gestor de fondos.
-OBJETIVO: Crecimiento compuesto del bankroll para alcanzar la meta de $6,000. 
-FILOSOFÍA: Identificar operaciones EV+ repetibles. Un gol que ocurre ≠ una operación válida. El proceso es superior al resultado.
+OBJETIVO: Crecimiento compuesto del bankroll. 
+FILOSOFÍA: Identificar operaciones EV+ repetibles. El proceso es superior al resultado.
 
-[PROTOCOLO DE ANÁLISIS: RAW DATA FIRST]
+[PROTOCOLO DE ANÁLISIS]
 Tu fuente de verdad absoluta es el TEXTO PEGADO (Raw Data).
-1. Velocidad: Prioridad máxima.
-2. Triangulación: Solo si se envían links, crúzalos. Si no, confía ciegamente en el Raw Data.
 
-🧩 ESTRUCTURA DEL COMITÉ (DUALIDAD)
-1. SCOUT (Agresivo): Busca momentum, presión, "Minuto de Ignición" y explica por qué SÍ podría ocurrir un gol.
-2. AUDITOR (Conservador): Evalúa el negocio, la cuota, la liga, aplica vetos y explica por qué NO debería operarse.
+🧩 ESTRUCTURA DEL COMITÉ
+1. SCOUT (Agresivo): Busca momentum y asedio.
+2. AUDITOR (Conservador): Evalúa el negocio, la cuota y aplica vetos.
 
 🏛️ CONSTITUCIÓN TÁCTICA
 1. FILTROS DE ENTRADA Y MOMENTUM:
@@ -220,22 +187,20 @@ SCOUT_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Scout de Oportunidad (Agresivo).
 MENTALIDAD: Acelerador. Si ves asedio, propón disparo.
 
-⚠️ [CALCULADORA OBLIGATORIA - PASO PREVIO] ⚠️
-Antes de emitir cualquier opinión, DEBES realizar el cálculo matemático explícito para evitar alucinaciones:
+⚠️ [CALCULADORA OBLIGATORIA]
+Antes de emitir cualquier opinión, DEBES realizar el cálculo matemático explícito:
 1. Extrae: Minuto Actual.
-2. Extrae: Total Ataques Peligrosos (Local + Visita).
+2. Extrae: Total Ataques Peligrosos.
 3. Calcula: RITMO = (Total AP) / Minuto.
-4. IMPRIME LA FÓRMULA EXACTA EN TU RESPUESTA.
+4. IMPRIME LA FÓRMULA.
 
-SI EL RITMO ES < 1.00 -> TU DECISIÓN DEBE SER 'PASAR' (Salvo excepción de 6+ Tiros a Puerta).
+SI EL RITMO ES < 1.00 -> TU DECISIÓN DEBE SER 'PASAR' (Salvo excepción de 6+ SOT).
 
-⚠️ FORMATO DE SALIDA EXACTO:
-La PRIMERA LÍNEA debe ser: OBJETIVO: [Equipo Local] vs [Equipo Visitante]
-
-RESTO DEL INFORME:
-1. CÁLCULO RITMO: [Ej: 67 AP / 77 Min = 0.87 AP/min]
+FORMATO:
+OBJETIVO: [Local] vs [Visita]
+1. CÁLCULO RITMO: [Fórmula]
 2. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
-3. MERCADO: [Tipo de apuesta]
+3. MERCADO: [Tipo]
 4. ANÁLISIS: [Momentum, Puntería, xG]
 5. URGENCIA: [Baja/Media/Alta]
 """
@@ -245,9 +210,9 @@ TU ROL: Auditor de Riesgo (Conservador).
 MENTALIDAD: Freno. Protege el capital.
 
 ⚠️ [AUDITORÍA TÉCNICA]
-Tu trabajo es verificar la matemática del Scout.
-- Verifica si la Cuota está en Rango de Oro (1.80 - 2.10).
-- Verifica la Ley Anti-Ravenna (Ligas prohibidas).
+- Verifica matemática del Scout.
+- Verifica Cuota Rango de Oro (1.80 - 2.10).
+- Verifica Ley Anti-Ravenna.
 
 FORMATO:
 1. VEREDICTO: [SÍ / NO / ESPERAR]
@@ -258,23 +223,18 @@ FORMATO:
 """
 
 JUEZ_1_PROMPT = """
-ACTÚAS COMO JUEZ DE PRIMERA INSTANCIA (PRE-SENTENCIA).
-Tu trabajo es sintetizar el conflicto entre Scout y Auditor.
-Si el Auditor dice NO, tú te inclinas al NO.
-
-⚠️ FORMATO DE SALIDA OBLIGATORIO:
-DELIBERACIÓN: [Tu análisis del conflicto en 2-3 líneas]
+ACTÚAS COMO JUEZ PRELIMINAR.
+Sintetiza el conflicto. Si Auditor dice NO, tú te inclinas al NO.
 OPINIÓN PRELIMINAR: [TEXTO DEL VEREDICTO] [EMOJI]
 """
 
 JUEZ_SUPREMO_PROMPT = """
-ACTÚAS COMO LA CORTE SUPREMA (DECISIÓN FINAL E IRREVOCABLE).
-Revisa el expediente completo. TU OBJETIVO ES LA SEGURIDAD TOTAL.
+ACTÚAS COMO LA CORTE SUPREMA.
 - Si Auditor dijo NO y Juez 1 dijo SÍ -> CORRIGE A "NO".
 - Si todos coinciden -> RATIFICA.
 - Si hay dudas -> ESPERAR (🟡).
 
-FORMATO OBLIGATORIO:
+FORMATO:
 SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
 MOTIVO: [Resumen final]
 ACCIÓN: [Instrucción precisa]
@@ -282,11 +242,18 @@ ACCIÓN: [Instrucción precisa]
 
 # --- INTERFAZ PRINCIPAL ---
 with st.form(key='bunker_form'):
-    raw_data = st.text_area("📥 DATOS EN TIEMPO REAL (Ctrl + Enter):", height=200)
-    submit_button = st.form_submit_button("⚡ EJECUTAR ANÁLISIS TÁCTICO")
+    raw_data = st.text_area("📥 DATOS DEL MERCADO (Ctrl + Enter):", height=200)
+    
+    col_btn1, col_btn2 = st.columns([1, 4])
+    with col_btn1:
+        submit_button = st.form_submit_button("⚡ EJECUTAR ANÁLISIS")
+    with col_btn2:
+        stop_button = st.form_submit_button("🛑 DETENER")
 
 if submit_button:
-    if not raw_data:
+    if stop_button:
+        st.warning("🛑 Ejecución detenida por el usuario.")
+    elif not raw_data:
         st.warning("⚠️ Ingrese datos para iniciar.")
     else:
         scout_resp = ""
@@ -300,7 +267,6 @@ if submit_button:
         with col1:
             st.subheader("🦅 Scout (Google)")
             if modelo_titular:
-                # Usamos el motor blindado V19
                 texto, status, tipo, exito = generar_respuesta_blindada(
                     google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS DEL PARTIDO:\n" + raw_data
                 )
@@ -351,10 +317,10 @@ if submit_button:
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
-            # --- PAUSA TÁCTICA 5s (SEGURIDAD EXTRA) ---
+            # --- PAUSA TÁCTICA 5s (SEGURIDAD) ---
             with st.spinner("⏳ Enfriando motores para el Tribunal... (Pausa Táctica)"):
                 time.sleep(5) 
-            # -------------------------------------------
+            # ------------------------------------
 
             # JUEZ 1
             st.header("👨‍⚖️ JUEZ PRELIMINAR")
@@ -396,7 +362,6 @@ if submit_button:
                     )
                     texto_supremo = res_supremo.choices[0].message.content
                     
-                    # VISUALIZACIÓN
                     if "🔴" in texto_supremo: st.error(texto_supremo)
                     elif "🟢" in texto_supremo: st.success(texto_supremo)
                     else: st.warning(texto_supremo)
