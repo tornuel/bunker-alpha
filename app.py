@@ -4,88 +4,81 @@ import google.generativeai as genai
 from datetime import datetime, timedelta
 import time
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="BUNKER ALPHA v17.1 - DYNAMIC HYDRA", layout="wide")
-st.title("🦅 BUNKER ALPHA: Corte Suprema (HYDRA DINÁMICO)")
+# --- CONFIGURACIÓN DE PÁGINA (PROFESIONAL) ---
+st.set_page_config(page_title="TRADING OPS: CONTROL CENTER", layout="wide")
+st.title("🦅 TRADING OPS: SISTEMA DE DECISIÓN (V18.1)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
 
-# --- NÚCLEO HYDRA DINÁMICO ---
+# --- MOTOR DE INFERENCIA (HYDRA DINÁMICO) ---
 def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     """
-    1. Intenta con el TITULAR.
-    2. Si falla, busca DINÁMICAMENTE en tu cuenta qué modelos 'Flash' o 'Pro'
-       existen realmente y los usa de suplentes.
+    Motor de alta disponibilidad.
+    Si el Modelo Principal falla, busca automáticamente recursos disponibles (Flash/Pro)
+    en la cuenta de Google para completar la misión.
     """
     genai.configure(api_key=google_key)
     
-    # 1. DEFINIR EL EJÉRCITO DE BATALLA
+    # 1. DEFINIR ORDEN DE BATALLA
     lista_batalla = [modelo_preferido]
     
-    # 2. RECLUTAMIENTO DE SUPLENTES (DINÁMICO)
-    # Pedimos a Google la lista REAL de lo que tienes activado
+    # 2. RECLUTAMIENTO DE RECURSOS (DINÁMICO)
     try:
         todos_los_modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # Buscamos refuerzos 'Flash' (Tanques) y 'Pro' (Cerebros)
+        # Buscamos refuerzos 'Flash' y 'Pro'
         suplentes_flash = [m for m in todos_los_modelos if "flash" in m and m != modelo_preferido]
         suplentes_pro = [m for m in todos_los_modelos if "pro" in m and m != modelo_preferido]
         
-        # Orden de batalla: Titular -> Flashes -> Pros
+        # Prioridad: Principal -> Flash -> Pro
         lista_batalla.extend(suplentes_flash)
         lista_batalla.extend(suplentes_pro)
         
     except Exception as e:
-        # Si falla el reclutamiento, intentamos con nombres genéricos por si acaso
+        # Fallback de emergencia
         lista_batalla.append("models/gemini-1.5-flash")
     
     errores_log = []
     
-    # 3. ATAQUE EN OLEADAS
+    # 3. EJECUCIÓN SECUENCIAL
     for modelo_actual in lista_batalla:
         try:
-            # INTENTO DE DISPARO
             model_instance = genai.GenerativeModel(modelo_actual)
             response = model_instance.generate_content(prompt)
-            
-            # ÉXITO
             texto = response.text
             
-            # Diagnóstico para el usuario
+            # Diagnóstico de ejecución
             if modelo_actual == modelo_preferido:
-                status = f"✅ Ejecutado por TITULAR ({modelo_actual})"
+                status = f"✅ Ejecutado por PRINCIPAL ({modelo_actual})"
                 tipo_aviso = "success"
             else:
-                status = f"⚠️ TITULAR CAÍDO. Rescatado por SUPLENTE ({modelo_actual})"
+                status = f"⚠️ PRINCIPAL CAÍDO. Ejecutado por RESPALDO ({modelo_actual})"
                 tipo_aviso = "warning"
                 
             return texto, status, tipo_aviso, True
             
         except Exception as e:
-            # SI FALLA, REGISTRAMOS Y PASAMOS AL SIGUIENTE
             errores_log.append(f"[{modelo_actual}]: {str(e)}")
             continue 
             
-    # SI SALIMOS DEL BUCLE, ES EL FIN
-    return f"Fallo Total del Sistema. Ningún modelo respondió. Reporte: {errores_log}", "❌ ERROR CRÍTICO", "error", False
+    return f"Fallo Crítico del Sistema. Ningún modelo respondió. Logs: {errores_log}", "❌ ERROR DE CONEXIÓN", "error", False
 
-# --- BARRA LATERAL ---
+# --- UI SIDEBAR (PROFESIONAL) ---
 with st.sidebar:
-    st.header("🔑 Llaves de Mando")
+    st.header("🔑 LLAVES DE ACCESO")
     openai_key = st.text_input("OpenAI API Key (Auditor & Juez Supremo)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez 1)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ SELECCIÓN DE ARMA (TITULAR)")
+    st.header("⚙️ CONFIGURACIÓN TÁCTICA")
     
     modelo_titular = None
     
     if google_key:
         try:
             genai.configure(api_key=google_key)
-            # OBTENEMOS LA LISTA REAL PARA EL MENÚ
             lista_modelos = []
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
@@ -94,10 +87,9 @@ with st.sidebar:
             if lista_modelos:
                 st.success(f"✅ Google Conectado")
                 
-                # BUSCADOR INTELIGENTE
+                # AUTO-SELECTOR INTELIGENTE
                 index_favorito = 0
                 for i, nombre in enumerate(lista_modelos):
-                    # Prioridad: Robotics > 2.5 > Flash Latest
                     if "robotics" in nombre:
                         index_favorito = i
                         break
@@ -107,89 +99,118 @@ with st.sidebar:
                         index_favorito = i
 
                 modelo_titular = st.selectbox(
-                    "🤖 Modelo Comandante:",
+                    "🤖 Modelo Principal:",
                     lista_modelos,
                     index=index_favorito,
-                    help="Elige tu favorito. Si falla, HYDRA buscará automáticamente cualquier modelo Flash disponible en tu cuenta."
+                    help="Modelo primario para el análisis. El sistema rotará automáticamente si este falla."
                 )
             else:
-                st.error("❌ Sin modelos disponibles.")
+                st.error("❌ Sin modelos disponibles en la cuenta.")
         except Exception as e:
-            st.error(f"❌ Error Google: {e}")
+            st.error(f"❌ Error de conexión: {e}")
     else:
-        st.warning("⚠️ Falta Google Key.")
+        st.warning("⚠️ Ingrese Google Key.")
 
     st.markdown("---")
-    st.success("SISTEMA: V17.1 (HYDRA DINÁMICO)")
-    st.info("🎯 OBJETIVO: $6,000")
+    st.info("ESTADO: OPERATIVO (V18.1)")
+    st.success("🎯 META: $6,000")
     
     # --- BITÁCORA ---
     st.markdown("---")
-    if st.button("🗑️ Borrar Historial"):
+    if st.button("🗑️ Limpiar Registros"):
         st.session_state['bitacora'] = []
         st.rerun()
     
     if len(st.session_state['bitacora']) > 0:
         st.write("---")
-        st.subheader("📂 BITÁCORA DE GUERRA")
+        st.subheader("📂 REGISTRO DE OPERACIONES")
         for i, registro in enumerate(reversed(st.session_state['bitacora'])):
             titulo_log = f"#{len(st.session_state['bitacora'])-i} | {registro['hora']} | {registro['veredicto']} | {registro.get('partido', 'Desconocido')}"
             with st.expander(titulo_log):
-                st.markdown(f"**⚽ PARTIDO:** {registro.get('partido', 'N/A')}")
+                st.markdown(f"**⚽ EVENTO:** {registro.get('partido', 'N/A')}")
                 st.markdown(f"**⚖️ SENTENCIA:**\n{registro['sentencia']}")
 
-# --- PROMPTS ---
+# --- CEREBRO DEL SISTEMA (PROMPT MADRE V6.0 + MATH FIX) ---
 CONSTITUCION_ALPHA = """
+📜 PROMPT MADRE — COMITÉ ALPHA (V6.0: INTEGRACIÓN TOTAL)
+(Gobernanza del Sistema | Inalterable durante la sesión)
+
 [ROL PRINCIPAL]
-Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228.
-OBJETIVO: Crecimiento compuesto del bankroll.
-FILOSOFÍA: Identificar operaciones EV+ repetibles.
+Actúan como un Comité de Decisión en Trading Deportivo de Élite con un IQ de 228. 
+Fusión de la disciplina matemática inflexible de un auditor de riesgos y la visión estratégica de un gestor de fondos.
+OBJETIVO: Crecimiento compuesto del bankroll para alcanzar la meta de $6,000. 
+FILOSOFÍA: Identificar operaciones EV+ repetibles. Un gol que ocurre ≠ una operación válida. El proceso es superior al resultado.
 
 [PROTOCOLO DE ANÁLISIS: RAW DATA FIRST]
-Fuente de verdad: TEXTO PEGADO (Raw Data).
-Input Obligatorio: Marcador, Minuto, AP, SOT, Córners, Tarjetas, Cuota.
+Tu fuente de verdad absoluta es el TEXTO PEGADO (Raw Data).
+1. Velocidad: Prioridad máxima.
+2. Triangulación: Solo si se envían links, crúzalos. Si no, confía ciegamente en el Raw Data.
 
-⚖️ PRINCIPIOS INQUEBRANTABLES (AUDITOR)
-- Proceso > Resultado.
-- Capacidad ≠ Operabilidad.
-- Necesidad > Inercia.
-- Timing de mercado: Buena lectura con mala cuota = NO TRADE.
+🧩 ESTRUCTURA DEL COMITÉ (DUALIDAD)
+1. SCOUT (Agresivo): Busca momentum, presión, "Minuto de Ignición" y explica por qué SÍ podría ocurrir un gol.
+2. AUDITOR (Conservador): Evalúa el negocio, la cuota, la liga, aplica vetos y explica por qué NO debería operarse.
 
-🧩 ESTRUCTURA DEL COMITÉ
-1. SCOUT (Agresivo): Busca momentum y asedio.
-2. AUDITOR (Conservador): Evalúa riesgo y cuota.
+🏛️ CONSTITUCIÓN TÁCTICA
+1. FILTROS DE ENTRADA Y MOMENTUM:
+· Ritmo Alpha (Asedio): Solo validar si AP >= 1.2/min (12 AP en 10 min).
+· ⚠️ Efecto Espejismo: Si la posesión es alta pero los AP son bajos, DESCARTAR.
+· ⚡ MODO SNIPER (Prioridad): Si AP/Min >= 1.5 Y SOT >= 4 en los últimos 15 min.
+· Regla 1.50 / 6 (Clutch Time >70'): Para disparar en los últimos 20 min, obligatorio Ritmo > 1.50 Y al menos 6 Tiros a Puerta (SOT) combinados.
+· Flexibilidad Alpha: Reducir exigencia de AP (1.2 -> 0.90) SOLO SI: Hay +8 córners antes del min 60 O el xG acumulado es > 2.0 con marcador corto.
+· 🔄 Volumen Combinado: Ambos equipos deben aportar. Si el rival tiene ataques nulos, el favorito se relaja y el partido muere.
+· Radar de Ignición: Si el ritmo es bajo (<1.2) pero el xG es alto (>1.20) o hay tensión (0-0, 1-1), calcula el "Minuto de Ignición".
 
-🏛️ REGLAS TÁCTICAS
-- Ritmo Alpha: AP >= 1.2/min.
-- Modo Sniper: AP/Min >= 1.5 Y SOT >= 4 (últimos 15 min).
-- Regla 1.50/6: Clutch Time >70' exige Ritmo > 1.50 y 6 SOT.
-- VETO Puntería: Remates Fuera > 2x SOT.
-- VETO Incentivo: Dominante gana por 2+ goles (salvo xG rival > 1.0).
-- SWEET SPOT: Cuota > 2.10 es VALOR PURO (APROBAR). Si < 1.80 (ESPERAR).
+2. FILTROS DE SEGURIDAD Y VETOS:
+· Filtro 1T: Yield histórico -38%. NO se apuesta en 1ª Mitad (Salvo excepción xG > 1.0 + Asedio).
+· Filtro de Puntería: VETO total si "Remates Fuera" es > 2x SOT. Sin puntería, el volumen es ruido.
+· Anti-Ravenna (Calidad): En recuperación (PRU), PROHIBIDO Ligas C, D, Regionales, Reservas o Juveniles. Prioridad: Ligas Top.
+· Filtro de Incentivo: VETO si el dominante gana por 2 o más goles, salvo que el xG del rival sea > 1.0.
 
-⛔ PROHIBICIONES ABSOLUTAS:
-- JAMÁS SUGERIR "ASIAN HANDICAPS".
-- Solo mercados: Ganador (1X2), Goles (Over/Under), Córners.
+3. PROTOCOLO "CEMENTERIO" (UNDER):
+· Filtro Zombi: Si SOT 0-1 (combinados), xG < 0.30 y AP < 1.0.
+· Entrada: Min 30-35 (Under 0.5 1T) o Min 75-80 (Under marcador actual +0.5).
+
+4. ESTRATEGIA DE ESPERA (SWEET SPOT):
+· Rango de Oro: Cuota entre 1.80 y 2.10.
+· Acción: Si la cuota es inferior, el veredicto DEBE ser ESPERAR.
+· Mercados: Solo Goles (1T, 2T) y Córners. Omitir asiáticos.
 """
 
+# --- SCOUT CON PARCHE MATEMÁTICO OBLIGATORIO ---
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Scout de Oportunidad (Agresivo).
 MENTALIDAD: Acelerador. Si ves asedio, propón disparo.
 
-⚠️ INSTRUCCIÓN DE FORMATO CRÍTICA:
-La PRIMERA LÍNEA de tu respuesta DEBE SER EL NOMBRE DE LOS EQUIPOS en este formato exacto:
-OBJETIVO: [Equipo Local] vs [Equipo Visitante]
+⚠️ [CALCULADORA OBLIGATORIA - PASO PREVIO] ⚠️
+Antes de emitir cualquier opinión, DEBES realizar el cálculo matemático explícito para evitar alucinaciones:
+1. Extrae: Minuto Actual.
+2. Extrae: Total Ataques Peligrosos (Local + Visita).
+3. Calcula: RITMO = (Total AP) / Minuto.
+4. IMPRIME LA FÓRMULA EXACTA EN TU RESPUESTA.
 
-FORMATO DEL RESTO:
-1. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
-2. MERCADO: [Tipo de apuesta - NO ASIÁTICOS]
-3. ANÁLISIS: [Momentum, Puntería, xG]
-4. URGENCIA: [Baja/Media/Alta]
+SI EL RITMO ES < 1.00 -> TU DECISIÓN DEBE SER 'PASAR' (Salvo excepción de 6+ Tiros a Puerta).
+
+⚠️ FORMATO DE SALIDA EXACTO:
+La PRIMERA LÍNEA debe ser: OBJETIVO: [Equipo Local] vs [Equipo Visitante]
+
+RESTO DEL INFORME:
+1. CÁLCULO RITMO: [Ej: 67 AP / 77 Min = 0.87 AP/min]
+2. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
+3. MERCADO: [Tipo de apuesta]
+4. ANÁLISIS: [Momentum, Puntería, xG]
+5. URGENCIA: [Baja/Media/Alta]
 """
 
+# --- AUDITOR CON DOBLE CHECK ---
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Auditor de Riesgo (Conservador).
 MENTALIDAD: Freno. Protege el capital.
+
+⚠️ [AUDITORÍA TÉCNICA]
+Tu trabajo es verificar la matemática del Scout.
+- Verifica si la Cuota está en Rango de Oro (1.80 - 2.10).
+- Verifica la Ley Anti-Ravenna (Ligas prohibidas).
+
 FORMATO:
 1. VEREDICTO: [SÍ / NO / ESPERAR]
 2. RIESGO: [Clave]
@@ -198,28 +219,30 @@ FORMATO:
 5. DAÑO: [Nivel]
 """
 
+# --- JUEZ 1 (CORREGIDO: PALABRA + EMOJI) ---
 JUEZ_1_PROMPT = """
 ACTÚAS COMO JUEZ DE PRIMERA INSTANCIA (PRE-SENTENCIA).
-Tu trabajo es leer al Scout y al Auditor y emitir una OPINIÓN PRELIMINAR.
-Sintetiza el conflicto. Si el Auditor dice NO, tú inclínate al NO.
-TU SALIDA:
-DELIBERACIÓN: [Tu análisis del conflicto]
-OPINIÓN PRELIMINAR: [🟢/🟡/🔴]
+Tu trabajo es sintetizar el conflicto entre Scout y Auditor.
+Si el Auditor dice NO, tú te inclinas al NO.
+
+⚠️ FORMATO DE SALIDA OBLIGATORIO:
+DELIBERACIÓN: [Tu análisis del conflicto en 2-3 líneas]
+OPINIÓN PRELIMINAR: [TEXTO DEL VEREDICTO] [EMOJI]
+Ejemplos correctos:
+- OPINIÓN PRELIMINAR: ESPERAR 🟡
+- OPINIÓN PRELIMINAR: NO OPERAR 🔴
+- OPINIÓN PRELIMINAR: DISPARAR 🟢
 """
 
 JUEZ_SUPREMO_PROMPT = """
 ACTÚAS COMO LA CORTE SUPREMA (DECISIÓN FINAL E IRREVOCABLE).
-Tu tarea es revisar el caso completo:
-1. Scout (Ataque)
-2. Auditor (Defensa)
-3. Juez de Primera Instancia (Opinión Preliminar)
+Revisa el expediente completo. TU OBJETIVO ES LA SEGURIDAD TOTAL.
 
-TU OBJETIVO ES LA SEGURIDAD TOTAL.
-- Si el Auditor dijo NO y el Juez 1 dijo SÍ -> CORRIGE A "NO" (Prioridad a la seguridad).
+- Si Auditor dijo NO y Juez 1 dijo SÍ -> CORRIGE A "NO".
 - Si todos coinciden -> RATIFICA.
 - Si hay dudas -> ESPERAR (🟡).
 
-⚠️ FORMATO OBLIGATORIO:
+FORMATO OBLIGATORIO:
 SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
 MOTIVO: [Resumen final]
 ACCIÓN: [Instrucción precisa]
@@ -227,41 +250,33 @@ ACCIÓN: [Instrucción precisa]
 
 # --- INTERFAZ PRINCIPAL ---
 with st.form(key='bunker_form'):
-    raw_data = st.text_area("📥 PEGA EL RAW DATA (Ctrl + Enter):", height=200)
-    submit_button = st.form_submit_button("⚡ EJECUTAR SISTEMA HYDRA")
+    raw_data = st.text_area("📥 DATOS EN TIEMPO REAL (Ctrl + Enter):", height=200)
+    submit_button = st.form_submit_button("⚡ EJECUTAR ANÁLISIS TÁCTICO")
 
 if submit_button:
     if not raw_data:
-        st.warning("⚠️ Sin datos.")
+        st.warning("⚠️ Ingrese datos para iniciar.")
     else:
         scout_resp = ""
         auditor_resp = ""
         juez1_resp = ""
-        nombre_partido_detectado = "Desconocido"
+        nombre_partido_detectado = "Evento Desconocido"
         
         col1, col2 = st.columns(2)
         
-        # ==========================================
-        # 1. SCOUT (SISTEMA HYDRA)
-        # ==========================================
+        # 1. SCOUT (CON CALCULADORA)
         with col1:
             st.subheader("🦅 Scout (Google)")
-            
             if modelo_titular:
-                # LLAMADA A HYDRA
                 texto, status, tipo, exito = generar_respuesta_blindada(
-                    google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS:\n" + raw_data
+                    google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS DEL PARTIDO:\n" + raw_data
                 )
-                
                 if exito:
                     scout_resp = texto
-                    # Feedback de estado
                     if tipo == "success": st.caption(status)
                     else: st.warning(status)
-                    
                     st.info(scout_resp)
-                    
-                    # Extraer Nombre Partido
+                    # Extracción limpia del nombre
                     try:
                         for linea in scout_resp.split('\n'):
                             if "OBJETIVO:" in linea:
@@ -271,8 +286,7 @@ if submit_button:
                         pass
                 else:
                     st.error(texto)
-                    
-            elif openai_key: # Fallback OpenAI
+            elif openai_key: 
                  try:
                     client = openai.OpenAI(api_key=openai_key)
                     res_scout = client.chat.completions.create(
@@ -280,17 +294,15 @@ if submit_button:
                         messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     scout_resp = res_scout.choices[0].message.content
-                    st.warning(f"⚠️ Scout (OpenAI - Sin Google Key):\n{scout_resp}")
+                    st.warning(f"⚠️ Scout (OpenAI - Backup):\n{scout_resp}")
                  except Exception as e:
                     st.error(f"Error OpenAI: {e}")
 
-        # ==========================================
-        # 2. AUDITOR (OPENAI - SIEMPRE FIABLE)
-        # ==========================================
+        # 2. AUDITOR (CONSTITUCIONAL)
         with col2:
             st.subheader("🛡️ Auditor (OpenAI)")
             if not openai_key:
-                st.warning("⚠️ Sin OpenAI Key.")
+                st.warning("⚠️ Requiere OpenAI Key.")
                 auditor_resp = "NO DISPONIBLE."
             else:
                 try:
@@ -303,23 +315,19 @@ if submit_button:
                     st.success(auditor_resp)
                 except Exception as e: 
                     st.error(f"Error OpenAI: {str(e)}")
-                    auditor_resp = "ERROR."
+                    auditor_resp = "ERROR TÉCNICO."
 
-        # ==========================================
-        # 3. JUECES (SOLO SI HAY DATOS)
-        # ==========================================
+        # 3. TRIBUNAL (JUECES)
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
-            # --- JUEZ 1 (SISTEMA HYDRA - INDEPENDIENTE) ---
-            st.header("👨‍⚖️ JUEZ 1: TRIBUNAL PRELIMINAR (GEMINI HYDRA)")
-            
+            # JUEZ 1
+            st.header("👨‍⚖️ JUEZ PRELIMINAR")
             if modelo_titular:
                 texto_j1, status_j1, tipo_j1, exito_j1 = generar_respuesta_blindada(
                     google_key, modelo_titular, 
-                    JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
+                    JUEZ_1_PROMPT + f"\n\nREPORTE SCOUT:\n{scout_resp}\n\nREPORTE AUDITOR:\n{auditor_resp}"
                 )
-                
                 if exito_j1:
                     juez1_resp = texto_j1
                     if tipo_j1 == "success": st.caption(status_j1)
@@ -333,8 +341,8 @@ if submit_button:
 
             st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
 
-            # --- JUEZ 2 (OPENAI - SUPREMO) ---
-            st.header("🏛️ JUEZ 2: CORTE SUPREMA (OPENAI)")
+            # CORTE SUPREMA
+            st.header("🏛️ CORTE SUPREMA (DECISIÓN FINAL)")
             try:
                 if openai_key:
                     client = openai.OpenAI(api_key=openai_key)
@@ -347,23 +355,19 @@ if submit_button:
                     res_supremo = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[
-                            {"role": "system", "content": "ERES LA CORTE SUPREMA. REVISA EL EXPEDIENTE COMPLETO."}, 
+                            {"role": "system", "content": "ERES LA CORTE SUPREMA. APLICA LA CONSTITUCIÓN ALPHA."}, 
                             {"role": "user", "content": JUEZ_SUPREMO_PROMPT + "\n\nEXPEDIENTE:\n" + expediente_completo}
                         ]
                     )
                     texto_supremo = res_supremo.choices[0].message.content
                     
-                    # VISUALIZACIÓN FINAL
-                    if "🔴" in texto_supremo:
-                        st.error(texto_supremo)
-                    elif "🟢" in texto_supremo:
-                        st.success(texto_supremo)
-                    else:
-                        st.warning(texto_supremo)
+                    # VISUALIZACIÓN
+                    if "🔴" in texto_supremo: st.error(texto_supremo)
+                    elif "🟢" in texto_supremo: st.success(texto_supremo)
+                    else: st.warning(texto_supremo)
 
-                    # HORA QUITO (UTC-5)
+                    # REGISTRO
                     hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
-
                     veredicto = "⚪"
                     if "🔴" in texto_supremo: veredicto = "🔴 NO OPERAR"
                     elif "🟡" in texto_supremo: veredicto = "🟡 ESPERAR"
@@ -373,8 +377,7 @@ if submit_button:
                         "hora": hora_quito,
                         "partido": nombre_partido_detectado,
                         "veredicto": veredicto,
-                        "sentencia": texto_supremo,
-                        "motivo": "Revisar expediente completo."
+                        "sentencia": texto_supremo
                     })
             except Exception as e:
                 st.error(f"Error Corte Suprema: {str(e)}")
