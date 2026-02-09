@@ -242,4 +242,175 @@ TU ROL: AUDITOR DE RIESGO (Conservador).
 MENTALIDAD: Freno. Protege el capital.
 
 ⚠️ [AUDITORÍA TÉCNICA Y FINANCIERA]
-- Verifica matemática
+- Verifica matemática del Scout.
+- Verifica Cuota Rango de Oro (1.80 - 2.10).
+- Verifica Ley Anti-Ravenna.
+- **CALCULA EL STAKE EXACTO SEGÚN LA GESTIÓN DE CAPITAL ALPHA 2.0 ($0.50, $1.00, etc).**
+
+FORMATO DE SALIDA:
+1. VEREDICTO: [SÍ / NO / ESPERAR]
+2. RIESGO CLAVE: [Lógica de negocio, Filtro fallido, Cuota baja]
+3. MONITOREO PREDICTIVO: [Minuto exacto y Cuota objetivo]
+4. GESTIÓN DE RIESGO: [Fase (P1/P2/P3/PRU) | Stake Exacto $ | Nivel Actual]
+5. DAÑO: [Nivel]
+"""
+
+JUEZ_1_PROMPT = """
+ACTÚAS COMO JUEZ PRELIMINAR.
+Sintetiza el conflicto. Si Auditor dice NO, tú te inclinas al NO.
+OPINIÓN PRELIMINAR: [TEXTO DEL VEREDICTO] [EMOJI]
+"""
+
+JUEZ_SUPREMO_PROMPT = """
+ACTÚAS COMO LA CORTE SUPREMA.
+- Si Auditor dijo NO y Juez 1 dijo SÍ -> CORRIGE A "NO".
+- Si todos coinciden -> RATIFICA.
+- Si hay dudas -> ESPERAR (🟡).
+
+FORMATO:
+SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
+MOTIVO: [Resumen final]
+ACCIÓN: [Instrucción precisa]
+"""
+
+# --- INTERFAZ PRINCIPAL ---
+with st.form(key='bunker_form'):
+    raw_data = st.text_area("📥 DATOS DEL MERCADO (Ctrl + Enter):", height=200)
+    
+    col_btn1, col_btn2 = st.columns([1, 6])
+    with col_btn1:
+        submit_button = st.form_submit_button("⚡ EJECUTAR")
+    with col_btn2:
+        stop_button = st.form_submit_button("🛑 DETENER (NO PROCESAR)")
+
+if stop_button:
+    st.warning("🛑 Ejecución cancelada por el usuario.")
+elif submit_button:
+    if not raw_data:
+        st.warning("⚠️ Ingrese datos para iniciar.")
+    else:
+        scout_resp = ""
+        auditor_resp = ""
+        juez1_resp = ""
+        nombre_partido_detectado = "Evento Desconocido"
+        
+        col1, col2 = st.columns(2)
+        
+        # 1. SCOUT
+        with col1:
+            st.subheader("🦅 Scout (Google)")
+            if modelo_titular:
+                texto, status, tipo, exito = generar_respuesta_blindada(
+                    google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS DEL PARTIDO:\n" + raw_data
+                )
+                if exito:
+                    scout_resp = texto
+                    if tipo == "success": st.caption(status)
+                    else: st.warning(status)
+                    st.info(scout_resp)
+                    try:
+                        for linea in scout_resp.split('\n'):
+                            if "OBJETIVO:" in linea:
+                                nombre_partido_detectado = linea.replace("OBJETIVO:", "").strip()
+                                break
+                    except: pass
+                else:
+                    st.error(texto)
+            elif openai_key: 
+                 try:
+                    client = openai.OpenAI(api_key=openai_key)
+                    res_scout = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
+                    )
+                    scout_resp = res_scout.choices[0].message.content
+                    st.warning(f"⚠️ Scout (OpenAI - Backup):\n{scout_resp}")
+                 except Exception as e: st.error(f"Error OpenAI: {e}")
+
+        # 2. AUDITOR
+        with col2:
+            st.subheader("🛡️ Auditor (OpenAI)")
+            if not openai_key:
+                st.warning("⚠️ Requiere OpenAI Key.")
+                auditor_resp = "NO DISPONIBLE."
+            else:
+                try:
+                    client = openai.OpenAI(api_key=openai_key)
+                    res_auditor = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
+                    )
+                    auditor_resp = res_auditor.choices[0].message.content
+                    st.success(auditor_resp)
+                except Exception as e: 
+                    st.error(f"Error OpenAI: {str(e)}")
+                    auditor_resp = "ERROR TÉCNICO."
+
+        # 3. TRIBUNAL (JUECES)
+        if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
+            st.markdown("---")
+            
+            # --- PAUSA TÁCTICA 5s (SEGURIDAD) ---
+            with st.spinner("⏳ Enfriando motores para el Tribunal... (Pausa Táctica)"):
+                time.sleep(5) 
+            # ------------------------------------
+
+            # JUEZ 1
+            st.header("👨‍⚖️ JUEZ PRELIMINAR")
+            if modelo_titular:
+                texto_j1, status_j1, tipo_j1, exito_j1 = generar_respuesta_blindada(
+                    google_key, modelo_titular, 
+                    JUEZ_1_PROMPT + f"\n\nREPORTE SCOUT:\n{scout_resp}\n\nREPORTE AUDITOR:\n{auditor_resp}"
+                )
+                if exito_j1:
+                    juez1_resp = texto_j1
+                    if tipo_j1 == "success": st.caption(status_j1)
+                    else: st.warning(status_j1)
+                    st.info(juez1_resp)
+                else:
+                    juez1_resp = "NO DISPONIBLE"
+                    st.error(texto_j1)
+            else:
+                juez1_resp = "NO DISPONIBLE"
+
+            st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
+
+            # CORTE SUPREMA
+            st.header("🏛️ CORTE SUPREMA")
+            try:
+                if openai_key:
+                    client = openai.OpenAI(api_key=openai_key)
+                    expediente_completo = f"""
+                    SCOUT (Ataque): {scout_resp}
+                    AUDITOR (Riesgo): {auditor_resp}
+                    JUEZ PRELIMINAR (Opinión): {juez1_resp}
+                    """
+                    
+                    res_supremo = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": "ERES LA CORTE SUPREMA. APLICA LA CONSTITUCIÓN ALPHA."}, 
+                            {"role": "user", "content": JUEZ_SUPREMO_PROMPT + "\n\nEXPEDIENTE:\n" + expediente_completo}
+                        ]
+                    )
+                    texto_supremo = res_supremo.choices[0].message.content
+                    
+                    if "🔴" in texto_supremo: st.error(texto_supremo)
+                    elif "🟢" in texto_supremo: st.success(texto_supremo)
+                    else: st.warning(texto_supremo)
+
+                    # REGISTRO
+                    hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
+                    veredicto = "⚪"
+                    if "🔴" in texto_supremo: veredicto = "🔴 NO OPERAR"
+                    elif "🟡" in texto_supremo: veredicto = "🟡 ESPERAR"
+                    elif "🟢" in texto_supremo: veredicto = "🟢 DISPARAR"
+                    
+                    st.session_state['bitacora'].append({
+                        "hora": hora_quito,
+                        "partido": nombre_partido_detectado,
+                        "veredicto": veredicto,
+                        "sentencia": texto_supremo
+                    })
+            except Exception as e:
+                st.error(f"Error Corte Suprema: {str(e)}")
