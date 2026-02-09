@@ -5,16 +5,18 @@ from datetime import datetime, timedelta
 import time
 import re
 
-# --- 1. CONFIGURACIÓN DE PÁGINA (ESTILO INSTITUCIONAL PURO) ---
+# --- 1. CONFIGURACIÓN DE PÁGINA (ESTILO INSTITUCIONAL COMPACTO) ---
 st.set_page_config(page_title="SISTEMA DE TRADING INSTITUCIONAL", layout="wide")
-# CORRECCIÓN FINAL: Título limpio sin "SNIPER"
-st.title("🏛️ SISTEMA DE TRADING INSTITUCIONAL (V20.1)")
+
+# Título H3 compacto
+st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V20.4)")
+st.markdown("---") 
 
 # --- 2. INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
 
-# --- 3. MOTOR DE INFERENCIA (HYDRA PRO - LATEST FIRST) ---
+# --- 3. MOTOR DE INFERENCIA (HYDRA: PRIORIDAD 2.5 -> 1.5) ---
 def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     genai.configure(api_key=google_key)
     
@@ -24,24 +26,29 @@ def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     try:
         todos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # ESTRATEGIA: Si el usuario pidió Latest, y falla, buscamos otros PROs
-        if "latest" in modelo_preferido:
-             respaldo_pro = [m for m in todos if "gemini-1.5-pro" in m and "latest" not in m]
-             lista_batalla.extend(respaldo_pro)
+        # ESTRATEGIA: SI FALLA EL PRINCIPAL, BUSCAR JERARQUÍA PRO
         
-        # Cualquier otro modelo PRO disponible (ej: 002, o versiones estables)
-        otros_pro = [m for m in todos if "pro" in m and m != modelo_preferido]
+        # 1. Refuerzos 2.5 PRO (La nueva bestia)
+        respaldo_25 = [m for m in todos if "2.5" in m and "pro" in m and m != modelo_preferido]
+        lista_batalla.extend(respaldo_25)
+
+        # 2. Refuerzos 1.5 PRO (El veterano confiable)
+        respaldo_15 = [m for m in todos if "1.5" in m and "pro" in m and m != modelo_preferido]
+        lista_batalla.extend(respaldo_15)
+        
+        # 3. Cualquier otro PRO
+        otros_pro = [m for m in todos if "pro" in m and "flash" not in m and m not in lista_batalla]
         lista_batalla.extend(otros_pro)
 
-        # Solo en caso de catástrofe total, usamos Flash
+        # 4. Emergencia: Flash
         respaldo_flash = [m for m in todos if "flash" in m]
         lista_batalla.extend(respaldo_flash)
         
         # Eliminar duplicados manteniendo el orden
         lista_batalla = list(dict.fromkeys(lista_batalla))
     except:
-        # Fallback de emergencia si la API de listado falla
-        lista_batalla = [modelo_preferido, "models/gemini-1.5-pro", "models/gemini-1.5-flash"]
+        # Fallback de emergencia manual
+        lista_batalla = [modelo_preferido, "models/gemini-2.5-pro", "models/gemini-1.5-pro"]
     
     errores_log = []
     
@@ -109,33 +116,34 @@ with st.sidebar:
             if lista_modelos:
                 st.success(f"✅ Google Cloud: CONECTADO")
                 
-                # --- AUTO-SELECTOR INTELIGENTE (PRIORIDAD LATEST) ---
+                # --- AUTO-SELECTOR AGRESIVO V20.4 (PRIORIDAD 2.5 PRO) ---
                 index_favorito = 0
                 match_found = False
                 
-                # 1. BUSQUEDA DE FRANCOTIRADOR: "gemini-1.5-pro-latest"
-                objetivo_primario = "gemini-1.5-pro-latest"
+                # 1. BUSCAR "2.5" Y "PRO" (LA NUEVA BESTIA)
                 for i, nombre in enumerate(lista_modelos):
-                    if objetivo_primario in nombre:
-                        index_favorito = i; match_found = True; break 
+                    if "2.5" in nombre and "pro" in nombre:
+                        index_favorito = i
+                        match_found = True
+                        break 
                 
-                # 2. Si no está, busca el "002" (Estable potente)
+                # 2. SI NO ESTÁ, BUSCAR "1.5" Y "PRO" (EL VETERANO)
                 if not match_found:
                     for i, nombre in enumerate(lista_modelos):
-                        if "gemini-1.5-pro-002" in nombre:
+                        if "1.5" in nombre and "pro" in nombre:
                             index_favorito = i; match_found = True; break
                 
-                # 3. Si no, cualquier PRO
+                # 3. SI FALLA TODO, CUALQUIER "PRO"
                 if not match_found:
                     for i, nombre in enumerate(lista_modelos):
-                        if "gemini-1.5-pro" in nombre and "latest" not in nombre:
+                        if "pro" in nombre and "vision" not in nombre:
                             index_favorito = i; match_found = True; break
 
                 modelo_titular = st.selectbox(
                     "🤖 Modelo Seleccionado:",
                     lista_modelos,
                     index=index_favorito,
-                    help="El sistema prioriza automáticamente el modelo LATEST."
+                    help="El sistema prioriza automáticamente el modelo GEMINI 2.5 PRO si está disponible."
                 )
             else:
                 st.error("❌ Sin modelos disponibles.")
@@ -145,7 +153,7 @@ with st.sidebar:
         st.warning("⚠️ Ingrese Google Key.")
 
     st.markdown("---")
-    st.info("ESTADO: ACTIVO (V20.1)")
+    st.info("ESTADO: ACTIVO (V20.4)")
     
     st.markdown("---")
     if st.button("🗑️ Limpiar Bitácora"):
@@ -161,7 +169,7 @@ with st.sidebar:
                 st.markdown(f"**⚽ EVENTO:** {registro.get('partido', 'N/A')}")
                 st.markdown(f"**⚖️ SENTENCIA:**\n{registro['sentencia']}")
 
-# --- 5. EL CEREBRO (CONSTITUCIÓN TEXTUAL - PROMPT MADRE V6.0) ---
+# --- 5. EL CEREBRO (PROMPT MADRE V6.0 - INTACTO) ---
 CONSTITUCION_ALPHA = """
 📜 PROMPT MADRE — COMITÉ ALPHA (V6.0: INTEGRACIÓN TOTAL)
 (Gobernanza del Sistema | Inalterable durante la sesión)
@@ -227,7 +235,7 @@ CONTINUIDAD PRU (Si falla P2 o P3):
 · NIVEL 2 ($150-$299): Stake Base $1.00 | Ganancia Ciclo $4.00.
 """
 
-# --- AGREGADOS DE ROL ESPECÍFICO (PARA REFORZAR) ---
+# --- AGREGADOS DE ROL ESPECÍFICO ---
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
 ---------------------------------------------------
 TU ROL ACTUAL: SCOUT DE OPORTUNIDAD (Agresivo).
@@ -242,12 +250,12 @@ Antes de emitir cualquier opinión, DEBES realizar el cálculo matemático expl�
 SI EL RITMO ES < 1.00 -> TU DECISIÓN DEBE SER 'PASAR' (Salvo excepción de 6+ SOT).
 
 FORMATO DE SALIDA (ESTRICTO):
-OBJETIVO: [Local] vs [Visita]
-1. CÁLCULO RITMO: [Fórmula]
-2. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
-3. MERCADO: [Tipo de apuesta]
-4. ANÁLISIS TÉCNICO: [Momentum, Puntería, xG, Sniper, Ignición]
-5. URGENCIA: [Baja / Media / Alta]
+1. OBJETIVO: [Local] vs [Visita]
+2. CÁLCULO RITMO: [Fórmula]
+3. DECISIÓN: [🟢 DISPARAR / 🟡 ESPERAR / 🔴 PASAR]
+4. MERCADO: [Tipo de apuesta]
+5. ANÁLISIS TÉCNICO: [Momentum, Puntería, xG, Sniper, Ignición]
+6. URGENCIA: [Baja / Media / Alta]
 """
 
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
