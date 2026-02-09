@@ -6,7 +6,7 @@ import time
 
 # --- CONFIGURACIÓN DE PÁGINA (PROFESIONAL) ---
 st.set_page_config(page_title="TRADING OPS: CONTROL CENTER", layout="wide")
-st.title("🦅 TRADING OPS: SISTEMA DE DECISIÓN (V18.1)")
+st.title("🦅 TRADING OPS: SISTEMA DE DECISIÓN (V18.2)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
@@ -112,7 +112,7 @@ with st.sidebar:
         st.warning("⚠️ Ingrese Google Key.")
 
     st.markdown("---")
-    st.info("ESTADO: OPERATIVO (V18.1)")
+    st.info("ESTADO: OPERATIVO (V18.2)")
     st.success("🎯 META: $6,000")
     
     # --- BITÁCORA ---
@@ -321,6 +321,11 @@ if submit_button:
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
+            # --- PAUSA TÁCTICA PARA EVITAR ERROR 429 ---
+            with st.spinner("⏳ Enfriando motores para el Tribunal... (Pausa Táctica)"):
+                time.sleep(5) 
+            # -------------------------------------------
+
             # JUEZ 1
             st.header("👨‍⚖️ JUEZ PRELIMINAR")
             if modelo_titular:
