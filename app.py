@@ -3,69 +3,97 @@ import openai
 import google.generativeai as genai
 from datetime import datetime, timedelta
 import time
+import re
 
 # --- CONFIGURACIÓN DE PÁGINA (PROFESIONAL) ---
 st.set_page_config(page_title="TRADING OPS: CONTROL CENTER", layout="wide")
-st.title("🦅 TRADING OPS: SISTEMA DE DECISIÓN (V18.2)")
+st.title("🦅 TRADING OPS: SISTEMA DE DECISIÓN (V19.0 - UNLIMITED)")
 
 # --- INICIALIZACIÓN DE MEMORIA ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
 
-# --- MOTOR DE INFERENCIA (HYDRA DINÁMICO) ---
+# --- MOTOR DE INFERENCIA (HYDRA PRO - CLEAN UI) ---
 def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     """
-    Motor de alta disponibilidad.
-    Si el Modelo Principal falla, busca automáticamente recursos disponibles (Flash/Pro)
-    en la cuenta de Google para completar la misión.
+    Motor V19: Prioriza modelos PRO.
+    Maneja errores visualmente con barras de carga (Clean UI).
     """
     genai.configure(api_key=google_key)
     
-    # 1. DEFINIR ORDEN DE BATALLA
+    # 1. DEFINIR ORDEN DE BATALLA (JERARQUÍA DE ÉLITE)
+    # Empezamos con el elegido (Latest), luego el Pro estable, luego los Flash de emergencia.
     lista_batalla = [modelo_preferido]
     
-    # 2. RECLUTAMIENTO DE RECURSOS (DINÁMICO)
     try:
-        todos_los_modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # Obtenemos lista real disponible en tu cuenta
+        todos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        # Buscamos refuerzos 'Flash' y 'Pro'
-        suplentes_flash = [m for m in todos_los_modelos if "flash" in m and m != modelo_preferido]
-        suplentes_pro = [m for m in todos_los_modelos if "pro" in m and m != modelo_preferido]
+        # Estrategia de Respaldo:
+        # Si falla el Latest, busca el Pro normal.
+        if "gemini-1.5-pro-latest" in modelo_preferido:
+             respaldo_pro = [m for m in todos if "gemini-1.5-pro" in m and "latest" not in m]
+             lista_batalla.extend(respaldo_pro)
         
-        # Prioridad: Principal -> Flash -> Pro
-        lista_batalla.extend(suplentes_flash)
-        lista_batalla.extend(suplentes_pro)
+        # Si fallan los Pros, vamos a los Flash (Emergencia)
+        respaldo_flash = [m for m in todos if "flash" in m]
+        lista_batalla.extend(respaldo_flash)
         
-    except Exception as e:
-        # Fallback de emergencia
-        lista_batalla.append("models/gemini-1.5-flash")
+        # Eliminamos duplicados manteniendo orden
+        lista_batalla = list(dict.fromkeys(lista_batalla))
+        
+    except:
+        # Fallback ciego si falla la lista
+        lista_batalla = [modelo_preferido, "models/gemini-1.5-pro", "models/gemini-1.5-flash"]
     
     errores_log = []
     
-    # 3. EJECUCIÓN SECUENCIAL
+    # 2. EJECUCIÓN SECUENCIAL CON MANEJO DE ERRORES VISUAL
     for modelo_actual in lista_batalla:
         try:
             model_instance = genai.GenerativeModel(modelo_actual)
             response = model_instance.generate_content(prompt)
             texto = response.text
             
-            # Diagnóstico de ejecución
+            # DIAGNÓSTICO DE EJECUCIÓN
             if modelo_actual == modelo_preferido:
-                status = f"✅ Ejecutado por PRINCIPAL ({modelo_actual})"
+                status = f"✅ Ejecutado por VANGUARDIA ({modelo_actual})"
                 tipo_aviso = "success"
             else:
-                status = f"⚠️ PRINCIPAL CAÍDO. Ejecutado por RESPALDO ({modelo_actual})"
+                status = f"⚠️ VANGUARDIA CAÍDA. Rescatado por ({modelo_actual})"
                 tipo_aviso = "warning"
                 
             return texto, status, tipo_aviso, True
             
         except Exception as e:
-            errores_log.append(f"[{modelo_actual}]: {str(e)}")
-            continue 
+            error_str = str(e)
             
-    return f"Fallo Crítico del Sistema. Ningún modelo respondió. Logs: {errores_log}", "❌ ERROR DE CONEXIÓN", "error", False
+            # --- DETECTOR DE RATE LIMIT (429) ---
+            # Aunque pagues, a veces Google pide pausa. Esto lo maneja elegante.
+            if "429" in error_str or "Quota exceeded" in error_str:
+                match = re.search(r"retry in (\d+\.?\d*)s", error_str)
+                segundos_espera = float(match.group(1)) + 1 if match else 5
+                
+                # BARRA DE CARGA (NO ERROR ROJO)
+                placeholder = st.empty()
+                with placeholder.container():
+                    st.warning(f"⏳ Recargando API ({modelo_actual})... Espera {int(segundos_espera)}s")
+                    progress_bar = st.progress(0)
+                    for i in range(100):
+                        time.sleep(segundos_espera / 100)
+                        progress_bar.progress(i + 1)
+                placeholder.empty()
+                
+                errores_log.append(f"[{modelo_actual}]: Rate Limit (Esperado)")
+                continue # Pasa al siguiente modelo o reintenta
+            
+            else:
+                errores_log.append(f"[{modelo_actual}]: {error_str}")
+                continue 
+            
+    return f"Fallo Total del Sistema. Logs: {errores_log}", "❌ ERROR CRÍTICO", "error", False
 
-# --- UI SIDEBAR (PROFESIONAL) ---
+# --- UI SIDEBAR (CONTROL MANUAL) ---
 with st.sidebar:
     st.header("🔑 LLAVES DE ACCESO")
     openai_key = st.text_input("OpenAI API Key (Auditor & Juez Supremo)", type="password")
@@ -85,34 +113,46 @@ with st.sidebar:
                     lista_modelos.append(m.name)
             
             if lista_modelos:
-                st.success(f"✅ Google Conectado")
+                st.success(f"✅ Google Conectado (Billing Activado)")
                 
-                # AUTO-SELECTOR INTELIGENTE
+                # --- AUTO-SELECTOR INTELIGENTE (MODO PRO) ---
+                # Prioridad absoluta a PRO-LATEST
                 index_favorito = 0
+                match_found = False
+                
+                # 1. Buscamos el mejor modelo posible
                 for i, nombre in enumerate(lista_modelos):
-                    if "robotics" in nombre:
+                    if "gemini-1.5-pro-latest" in nombre:
                         index_favorito = i
+                        match_found = True
                         break
-                    elif "2.5" in nombre and index_favorito == 0:
-                        index_favorito = i
-                    elif "flash-latest" in nombre and index_favorito == 0:
-                        index_favorito = i
+                
+                # 2. Si no está el latest, buscamos el pro normal
+                if not match_found:
+                    for i, nombre in enumerate(lista_modelos):
+                        if "gemini-1.5-pro" in nombre and "latest" not in nombre:
+                            index_favorito = i
+                            match_found = True
+                            break
+                
+                # 3. Si no hay pro, el que sea
+                if not match_found: index_favorito = 0
 
                 modelo_titular = st.selectbox(
-                    "🤖 Modelo Principal:",
+                    "🤖 Cerebro Principal (Override):",
                     lista_modelos,
                     index=index_favorito,
-                    help="Modelo primario para el análisis. El sistema rotará automáticamente si este falla."
+                    help="El sistema selecciona automáticamente el mejor modelo PRO. Úsalo solo si necesitas cambiarlo manualmente."
                 )
             else:
-                st.error("❌ Sin modelos disponibles en la cuenta.")
+                st.error("❌ Sin modelos disponibles.")
         except Exception as e:
             st.error(f"❌ Error de conexión: {e}")
     else:
         st.warning("⚠️ Ingrese Google Key.")
 
     st.markdown("---")
-    st.info("ESTADO: OPERATIVO (V18.2)")
+    st.info("ESTADO: UNLIMITED (V19.0)")
     st.success("🎯 META: $6,000")
     
     # --- BITÁCORA ---
@@ -130,7 +170,7 @@ with st.sidebar:
                 st.markdown(f"**⚽ EVENTO:** {registro.get('partido', 'N/A')}")
                 st.markdown(f"**⚖️ SENTENCIA:**\n{registro['sentencia']}")
 
-# --- CEREBRO DEL SISTEMA (PROMPT MADRE V6.0 + MATH FIX) ---
+# --- CEREBRO DEL SISTEMA (PROMPTS V6.0) ---
 CONSTITUCION_ALPHA = """
 📜 PROMPT MADRE — COMITÉ ALPHA (V6.0: INTEGRACIÓN TOTAL)
 (Gobernanza del Sistema | Inalterable durante la sesión)
@@ -176,7 +216,6 @@ Tu fuente de verdad absoluta es el TEXTO PEGADO (Raw Data).
 · Mercados: Solo Goles (1T, 2T) y Córners. Omitir asiáticos.
 """
 
-# --- SCOUT CON PARCHE MATEMÁTICO OBLIGATORIO ---
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Scout de Oportunidad (Agresivo).
 MENTALIDAD: Acelerador. Si ves asedio, propón disparo.
@@ -201,7 +240,6 @@ RESTO DEL INFORME:
 5. URGENCIA: [Baja/Media/Alta]
 """
 
-# --- AUDITOR CON DOBLE CHECK ---
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
 TU ROL: Auditor de Riesgo (Conservador).
 MENTALIDAD: Freno. Protege el capital.
@@ -219,7 +257,6 @@ FORMATO:
 5. DAÑO: [Nivel]
 """
 
-# --- JUEZ 1 (CORREGIDO: PALABRA + EMOJI) ---
 JUEZ_1_PROMPT = """
 ACTÚAS COMO JUEZ DE PRIMERA INSTANCIA (PRE-SENTENCIA).
 Tu trabajo es sintetizar el conflicto entre Scout y Auditor.
@@ -228,16 +265,11 @@ Si el Auditor dice NO, tú te inclinas al NO.
 ⚠️ FORMATO DE SALIDA OBLIGATORIO:
 DELIBERACIÓN: [Tu análisis del conflicto en 2-3 líneas]
 OPINIÓN PRELIMINAR: [TEXTO DEL VEREDICTO] [EMOJI]
-Ejemplos correctos:
-- OPINIÓN PRELIMINAR: ESPERAR 🟡
-- OPINIÓN PRELIMINAR: NO OPERAR 🔴
-- OPINIÓN PRELIMINAR: DISPARAR 🟢
 """
 
 JUEZ_SUPREMO_PROMPT = """
 ACTÚAS COMO LA CORTE SUPREMA (DECISIÓN FINAL E IRREVOCABLE).
 Revisa el expediente completo. TU OBJETIVO ES LA SEGURIDAD TOTAL.
-
 - Si Auditor dijo NO y Juez 1 dijo SÍ -> CORRIGE A "NO".
 - Si todos coinciden -> RATIFICA.
 - Si hay dudas -> ESPERAR (🟡).
@@ -264,10 +296,11 @@ if submit_button:
         
         col1, col2 = st.columns(2)
         
-        # 1. SCOUT (CON CALCULADORA)
+        # 1. SCOUT
         with col1:
             st.subheader("🦅 Scout (Google)")
             if modelo_titular:
+                # Usamos el motor blindado V19
                 texto, status, tipo, exito = generar_respuesta_blindada(
                     google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS DEL PARTIDO:\n" + raw_data
                 )
@@ -276,14 +309,12 @@ if submit_button:
                     if tipo == "success": st.caption(status)
                     else: st.warning(status)
                     st.info(scout_resp)
-                    # Extracción limpia del nombre
                     try:
                         for linea in scout_resp.split('\n'):
                             if "OBJETIVO:" in linea:
                                 nombre_partido_detectado = linea.replace("OBJETIVO:", "").strip()
                                 break
-                    except:
-                        pass
+                    except: pass
                 else:
                     st.error(texto)
             elif openai_key: 
@@ -295,10 +326,9 @@ if submit_button:
                     )
                     scout_resp = res_scout.choices[0].message.content
                     st.warning(f"⚠️ Scout (OpenAI - Backup):\n{scout_resp}")
-                 except Exception as e:
-                    st.error(f"Error OpenAI: {e}")
+                 except Exception as e: st.error(f"Error OpenAI: {e}")
 
-        # 2. AUDITOR (CONSTITUCIONAL)
+        # 2. AUDITOR
         with col2:
             st.subheader("🛡️ Auditor (OpenAI)")
             if not openai_key:
@@ -321,7 +351,7 @@ if submit_button:
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
             
-            # --- PAUSA TÁCTICA PARA EVITAR ERROR 429 ---
+            # --- PAUSA TÁCTICA 5s (SEGURIDAD EXTRA) ---
             with st.spinner("⏳ Enfriando motores para el Tribunal... (Pausa Táctica)"):
                 time.sleep(5) 
             # -------------------------------------------
@@ -347,7 +377,7 @@ if submit_button:
             st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
 
             # CORTE SUPREMA
-            st.header("🏛️ CORTE SUPREMA (DECISIÓN FINAL)")
+            st.header("🏛️ CORTE SUPREMA")
             try:
                 if openai_key:
                     client = openai.OpenAI(api_key=openai_key)
