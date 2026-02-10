@@ -9,7 +9,7 @@ import re
 st.set_page_config(page_title="SISTEMA DE TRADING INSTITUCIONAL", layout="wide")
 
 # Título H3 compacto
-st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V21.3 - AUTO NAMING)")
+st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V21.4 - FULL SYSTEM)")
 st.markdown("---") 
 
 # --- 2. INICIALIZACIÓN DE MEMORIA Y ESTADO ---
@@ -118,6 +118,21 @@ with st.sidebar:
     if st.button("🗑️ Reset Bitácora Sesión"):
         st.session_state['bitacora'] = []
         st.rerun()
+    
+    # --- PARCHE DE VISUALIZACIÓN DE BITÁCORA ---
+    if len(st.session_state['bitacora']) > 0:
+        st.markdown("---")
+        st.subheader("📂 HISTORIAL (SESIÓN)")
+        # Bucle inverso para mostrar lo más reciente arriba
+        for i, registro in enumerate(reversed(st.session_state['bitacora'])):
+            num_operacion = len(st.session_state['bitacora']) - i
+            titulo_log = f"#{num_operacion} | {registro['hora']} | {registro['veredicto']}"
+            
+            with st.expander(titulo_log):
+                st.markdown(f"**⚽ PARTIDO:** {registro.get('partido', 'Desconocido')}")
+                st.markdown("**⚖️ SENTENCIA:**")
+                # Mostramos solo un resumen corto para no saturar el sidebar
+                st.info(registro['sentencia'])
 
 # --- 6. EL CEREBRO (PROMPT MADRE V6.0 - CON INSTRUCCIÓN DE NOMBRE) ---
 CONSTITUCION_ALPHA = """
@@ -353,7 +368,7 @@ elif submit_button:
                     elif "🟢" in texto_supremo: st.success(texto_supremo)
                     else: st.warning(texto_supremo)
 
-                    # REGISTRO SESIÓN
+                    # REGISTRO SESIÓN (GUARDADO EN MEMORIA)
                     hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
                     veredicto = "⚪"
                     if "🔴" in texto_supremo: veredicto = "🔴 NO OPERAR"
@@ -402,9 +417,6 @@ EVENTO: {nombre_partido_detectado}
 FIN DEL REPORTE
 """
             # Nombre del archivo limpio
-            # Si el Scout obedeció, el nombre ya viene con guiones bajos (Lanus_vs_Talleres)
-            # Solo aseguramos que termine en .txt
-            
             safe_filename = nombre_partido_detectado.strip()
             if not safe_filename: safe_filename = "Analisis_Sin_Nombre"
             
