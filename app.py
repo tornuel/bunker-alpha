@@ -9,74 +9,52 @@ import re
 st.set_page_config(page_title="SISTEMA DE TRADING INSTITUCIONAL", layout="wide")
 
 # Título H3 compacto
-st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V20.4)")
+st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V21.0 - BLACK BOX)")
 st.markdown("---") 
 
-# --- 2. INICIALIZACIÓN DE MEMORIA ---
+# --- 2. INICIALIZACIÓN DE MEMORIA Y ESTADO ---
 if 'bitacora' not in st.session_state:
     st.session_state['bitacora'] = []
+
+# Variable de estado para controlar el texto del input
+if 'input_text_key' not in st.session_state:
+    st.session_state['input_text_key'] = ""
 
 # --- 3. MOTOR DE INFERENCIA (HYDRA: PRIORIDAD 2.5 -> 1.5) ---
 def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
     genai.configure(api_key=google_key)
-    
-    # DEFINIR ORDEN DE BATALLA (Priority Queue)
     lista_batalla = [modelo_preferido]
     
     try:
         todos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # ESTRATEGIA: SI FALLA EL PRINCIPAL, BUSCAR JERARQUÍA PRO
-        
-        # 1. Refuerzos 2.5 PRO (La nueva bestia)
+        # 1. Refuerzos 2.5 PRO
         respaldo_25 = [m for m in todos if "2.5" in m and "pro" in m and m != modelo_preferido]
         lista_batalla.extend(respaldo_25)
-
-        # 2. Refuerzos 1.5 PRO (El veterano confiable)
+        # 2. Refuerzos 1.5 PRO
         respaldo_15 = [m for m in todos if "1.5" in m and "pro" in m and m != modelo_preferido]
         lista_batalla.extend(respaldo_15)
-        
-        # 3. Cualquier otro PRO
+        # 3. Otros PRO
         otros_pro = [m for m in todos if "pro" in m and "flash" not in m and m not in lista_batalla]
         lista_batalla.extend(otros_pro)
-
-        # 4. Emergencia: Flash
+        # 4. Emergencia Flash
         respaldo_flash = [m for m in todos if "flash" in m]
         lista_batalla.extend(respaldo_flash)
-        
-        # Eliminar duplicados manteniendo el orden
         lista_batalla = list(dict.fromkeys(lista_batalla))
     except:
-        # Fallback de emergencia manual
         lista_batalla = [modelo_preferido, "models/gemini-2.5-pro", "models/gemini-1.5-pro"]
     
     errores_log = []
     
-    # EJECUCIÓN SECUENCIAL
     for modelo_actual in lista_batalla:
         try:
             model_instance = genai.GenerativeModel(modelo_actual)
             response = model_instance.generate_content(prompt)
-            texto = response.text
-            
-            # ÉXITO
-            if modelo_actual == modelo_preferido:
-                status = f"✅ EJECUTADO POR VANGUARDIA ({modelo_actual})"
-                tipo_aviso = "success"
-            else:
-                status = f"⚠️ VANGUARDIA CAÍDA. RESPALDO ACTIVADO ({modelo_actual})"
-                tipo_aviso = "warning"
-                
-            return texto, status, tipo_aviso, True
-            
+            return response.text, f"✅ EJECUTADO POR VANGUARDIA ({modelo_actual})", "success", True
         except Exception as e:
             error_str = str(e)
-            
-            # MANEJO DE ERRORES ELEGANTE (CLEAN UI)
             if "429" in error_str or "Quota exceeded" in error_str:
                 match = re.search(r"retry in (\d+\.?\d*)s", error_str)
                 segundos_espera = float(match.group(1)) + 1 if match else 5
-                
                 placeholder = st.empty()
                 with placeholder.container():
                     st.warning(f"⏳ Recargando API ({modelo_actual})... Espera {int(segundos_espera)}s")
@@ -85,26 +63,28 @@ def generar_respuesta_blindada(google_key, modelo_preferido, prompt):
                         time.sleep(segundos_espera / 100)
                         progress_bar.progress(i + 1)
                 placeholder.empty()
-                
-                errores_log.append(f"[{modelo_actual}]: Rate Limit (Manejado)")
+                errores_log.append(f"[{modelo_actual}]: Rate Limit")
                 continue 
             else:
                 errores_log.append(f"[{modelo_actual}]: {error_str}")
                 continue 
             
-    return f"Fallo Total del Sistema. Logs: {errores_log}", "❌ ERROR CRÍTICO", "error", False
+    return f"Fallo Total. Logs: {errores_log}", "❌ ERROR CRÍTICO", "error", False
 
-# --- 4. UI SIDEBAR ---
+# --- 4. FUNCIONES DE LIMPIEZA ---
+def clear_input():
+    st.session_state["raw_input"] = "" # Esto borra el contenido del text_area
+
+# --- 5. UI SIDEBAR ---
 with st.sidebar:
     st.header("🔑 CREDENCIALES")
     openai_key = st.text_input("OpenAI API Key (Auditor & Juez Supremo)", type="password")
     google_key = st.text_input("Google API Key (Scout & Juez 1)", type="password")
     
     st.markdown("---")
-    st.header("⚙️ CONFIGURACIÓN DEL MOTOR")
+    st.header("⚙️ MOTOR")
     
     modelo_titular = None
-    
     if google_key:
         try:
             genai.configure(api_key=google_key)
@@ -115,61 +95,31 @@ with st.sidebar:
             
             if lista_modelos:
                 st.success(f"✅ Google Cloud: CONECTADO")
-                
-                # --- AUTO-SELECTOR AGRESIVO V20.4 (PRIORIDAD 2.5 PRO) ---
                 index_favorito = 0
                 match_found = False
-                
-                # 1. BUSCAR "2.5" Y "PRO" (LA NUEVA BESTIA)
+                # Prioridad 2.5 Pro -> 1.5 Pro -> Pro
                 for i, nombre in enumerate(lista_modelos):
-                    if "2.5" in nombre and "pro" in nombre:
-                        index_favorito = i
-                        match_found = True
-                        break 
-                
-                # 2. SI NO ESTÁ, BUSCAR "1.5" Y "PRO" (EL VETERANO)
+                    if "2.5" in nombre and "pro" in nombre: index_favorito = i; match_found = True; break 
                 if not match_found:
                     for i, nombre in enumerate(lista_modelos):
-                        if "1.5" in nombre and "pro" in nombre:
-                            index_favorito = i; match_found = True; break
-                
-                # 3. SI FALLA TODO, CUALQUIER "PRO"
+                        if "1.5" in nombre and "pro" in nombre: index_favorito = i; match_found = True; break
                 if not match_found:
                     for i, nombre in enumerate(lista_modelos):
-                        if "pro" in nombre and "vision" not in nombre:
-                            index_favorito = i; match_found = True; break
+                        if "pro" in nombre and "vision" not in nombre: index_favorito = i; match_found = True; break
 
-                modelo_titular = st.selectbox(
-                    "🤖 Modelo Seleccionado:",
-                    lista_modelos,
-                    index=index_favorito,
-                    help="El sistema prioriza automáticamente el modelo GEMINI 2.5 PRO si está disponible."
-                )
+                modelo_titular = st.selectbox("🤖 Modelo:", lista_modelos, index=index_favorito)
             else:
-                st.error("❌ Sin modelos disponibles.")
-        except Exception as e:
-            st.error(f"❌ Error de conexión: {e}")
+                st.error("❌ Sin modelos.")
+        except: st.error("❌ Error Conexión")
     else:
         st.warning("⚠️ Ingrese Google Key.")
 
     st.markdown("---")
-    st.info("ESTADO: ACTIVO (V20.4)")
-    
-    st.markdown("---")
-    if st.button("🗑️ Limpiar Bitácora"):
+    if st.button("🗑️ Reset Bitácora Sesión"):
         st.session_state['bitacora'] = []
         st.rerun()
-    
-    if len(st.session_state['bitacora']) > 0:
-        st.write("---")
-        st.subheader("📂 HISTORIAL")
-        for i, registro in enumerate(reversed(st.session_state['bitacora'])):
-            titulo_log = f"#{len(st.session_state['bitacora'])-i} | {registro['hora']} | {registro['veredicto']} | {registro.get('partido', 'Desconocido')}"
-            with st.expander(titulo_log):
-                st.markdown(f"**⚽ EVENTO:** {registro.get('partido', 'N/A')}")
-                st.markdown(f"**⚖️ SENTENCIA:**\n{registro['sentencia']}")
 
-# --- 5. EL CEREBRO (PROMPT MADRE V6.0 - INTACTO) ---
+# --- 6. EL CEREBRO (PROMPT MADRE V6.0) ---
 CONSTITUCION_ALPHA = """
 📜 PROMPT MADRE — COMITÉ ALPHA (V6.0: INTEGRACIÓN TOTAL)
 (Gobernanza del Sistema | Inalterable durante la sesión)
@@ -235,20 +185,11 @@ CONTINUIDAD PRU (Si falla P2 o P3):
 · NIVEL 2 ($150-$299): Stake Base $1.00 | Ganancia Ciclo $4.00.
 """
 
-# --- AGREGADOS DE ROL ESPECÍFICO ---
 SCOUT_PROMPT = CONSTITUCION_ALPHA + """
 ---------------------------------------------------
 TU ROL ACTUAL: SCOUT DE OPORTUNIDAD (Agresivo).
-
 ⚠️ [CALCULADORA OBLIGATORIA]
-Antes de emitir cualquier opinión, DEBES realizar el cálculo matemático explícito:
-1. Extrae: Minuto Actual.
-2. Extrae: Total Ataques Peligrosos.
-3. Calcula: RITMO = (Total AP) / Minuto.
-4. IMPRIME LA FÓRMULA.
-
-SI EL RITMO ES < 1.00 -> TU DECISIÓN DEBE SER 'PASAR' (Salvo excepción de 6+ SOT).
-
+Calcula: RITMO = (Total AP) / Minuto. IMPRIME LA FÓRMULA.
 FORMATO DE SALIDA (ESTRICTO):
 1. OBJETIVO: [Local] vs [Visita]
 2. CÁLCULO RITMO: [Fórmula]
@@ -261,13 +202,9 @@ FORMATO DE SALIDA (ESTRICTO):
 AUDITOR_PROMPT = CONSTITUCION_ALPHA + """
 ---------------------------------------------------
 TU ROL ACTUAL: AUDITOR DE RIESGO (Conservador).
-
 ⚠️ [AUDITORÍA TÉCNICA Y FINANCIERA]
-- Verifica matemática del Scout.
-- Verifica Cuota Rango de Oro (1.80 - 2.10).
-- Verifica Ley Anti-Ravenna.
-- **CALCULA EL STAKE EXACTO SEGÚN LA GESTIÓN DE CAPITAL ALPHA 2.0 ($0.50, $1.00, etc).**
-
+- Verifica matemática, Rango de Oro y Ley Anti-Ravenna.
+- **CALCULA STAKE EXACTO SEGÚN ALPHA 2.0 ($0.50, $1.00, etc).**
 FORMATO DE SALIDA (ESTRICTO):
 1. VEREDICTO: [SÍ / NO / ESPERAR]
 2. RIESGO CLAVE: [Lógica de negocio, Filtro fallido, Cuota baja]
@@ -278,34 +215,30 @@ FORMATO DE SALIDA (ESTRICTO):
 
 JUEZ_1_PROMPT = """
 ACTÚAS COMO JUEZ PRELIMINAR.
-Sintetiza el conflicto. Si Auditor dice NO, tú te inclinas al NO.
 OPINIÓN PRELIMINAR: [TEXTO DEL VEREDICTO] [EMOJI]
 """
 
 JUEZ_SUPREMO_PROMPT = """
 ACTÚAS COMO LA CORTE SUPREMA.
-- Si Auditor dijo NO y Juez 1 dijo SÍ -> CORRIGE A "NO".
-- Si todos coinciden -> RATIFICA.
-- Si hay dudas -> ESPERAR (🟡).
-
 FORMATO:
 SENTENCIA FINAL: [🔴 NO OPERAR / 🟡 ESPERAR / 🟢 DISPARAR]
 MOTIVO: [Resumen final]
 ACCIÓN: [Instrucción precisa]
 """
 
-# --- 6. INTERFAZ PRINCIPAL ---
+# --- 7. INTERFAZ PRINCIPAL ---
 with st.form(key='bunker_form'):
-    raw_data = st.text_area("📥 DATOS DEL MERCADO (Ctrl + Enter):", height=200)
+    # Usamos st.session_state para poder borrar el contenido después
+    raw_data = st.text_area("📥 DATOS DEL MERCADO (Ctrl + Enter):", height=200, key="raw_input")
     
     col_btn1, col_btn2 = st.columns([1, 6])
     with col_btn1:
         submit_button = st.form_submit_button("⚡ EJECUTAR")
     with col_btn2:
-        stop_button = st.form_submit_button("🛑 DETENER (NO PROCESAR)")
+        stop_button = st.form_submit_button("🛑 DETENER")
 
 if stop_button:
-    st.warning("🛑 Ejecución cancelada por el usuario.")
+    st.warning("🛑 Ejecución cancelada.")
 elif submit_button:
     if not raw_data:
         st.warning("⚠️ Ingrese datos para iniciar.")
@@ -315,19 +248,19 @@ elif submit_button:
         juez1_resp = ""
         nombre_partido_detectado = "Evento Desconocido"
         
+        # --- PROCESO DE ANÁLISIS ---
         col1, col2 = st.columns(2)
         
         # 1. SCOUT
         with col1:
-            st.subheader("🦅 Scout (Google)")
+            st.subheader("🦅 Scout")
             if modelo_titular:
                 texto, status, tipo, exito = generar_respuesta_blindada(
-                    google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS DEL PARTIDO:\n" + raw_data
+                    google_key, modelo_titular, SCOUT_PROMPT + "\nDATOS:\n" + raw_data
                 )
                 if exito:
                     scout_resp = texto
-                    if tipo == "success": st.caption(status)
-                    else: st.warning(status)
+                    st.caption(status)
                     st.info(scout_resp)
                     try:
                         for linea in scout_resp.split('\n'):
@@ -335,22 +268,20 @@ elif submit_button:
                                 nombre_partido_detectado = linea.replace("OBJETIVO:", "").strip()
                                 break
                     except: pass
-                else:
-                    st.error(texto)
+                else: st.error(texto)
             elif openai_key: 
                  try:
                     client = openai.OpenAI(api_key=openai_key)
                     res_scout = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
+                        model="gpt-4o-mini", messages=[{"role": "system", "content": SCOUT_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     scout_resp = res_scout.choices[0].message.content
-                    st.warning(f"⚠️ Scout (OpenAI - Backup):\n{scout_resp}")
+                    st.warning(f"⚠️ Scout (Backup OpenAI):\n{scout_resp}")
                  except Exception as e: st.error(f"Error OpenAI: {e}")
 
         # 2. AUDITOR
         with col2:
-            st.subheader("🛡️ Auditor (OpenAI)")
+            st.subheader("🛡️ Auditor")
             if not openai_key:
                 st.warning("⚠️ Requiere OpenAI Key.")
                 auditor_resp = "NO DISPONIBLE."
@@ -358,8 +289,7 @@ elif submit_button:
                 try:
                     client = openai.OpenAI(api_key=openai_key)
                     res_auditor = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
+                        model="gpt-4o-mini", messages=[{"role": "system", "content": AUDITOR_PROMPT}, {"role": "user", "content": raw_data}]
                     )
                     auditor_resp = res_auditor.choices[0].message.content
                     st.success(auditor_resp)
@@ -367,51 +297,40 @@ elif submit_button:
                     st.error(f"Error OpenAI: {str(e)}")
                     auditor_resp = "ERROR TÉCNICO."
 
-        # 3. TRIBUNAL (JUECES)
+        # 3. TRIBUNAL
         if scout_resp and auditor_resp and "ERROR" not in auditor_resp:
             st.markdown("---")
-            
-            # --- PAUSA TÁCTICA 5s (SEGURIDAD) ---
-            with st.spinner("⏳ Enfriando motores para el Tribunal... (Pausa Táctica)"):
+            with st.spinner("⏳ Enfriando motores... (Pausa Táctica)"):
                 time.sleep(5) 
-            # ------------------------------------
 
-            # JUEZ 1
+            # Juez 1
             st.header("👨‍⚖️ JUEZ PRELIMINAR")
             if modelo_titular:
                 texto_j1, status_j1, tipo_j1, exito_j1 = generar_respuesta_blindada(
-                    google_key, modelo_titular, 
-                    JUEZ_1_PROMPT + f"\n\nREPORTE SCOUT:\n{scout_resp}\n\nREPORTE AUDITOR:\n{auditor_resp}"
+                    google_key, modelo_titular, JUEZ_1_PROMPT + f"\n\nSCOUT:\n{scout_resp}\n\nAUDITOR:\n{auditor_resp}"
                 )
                 if exito_j1:
                     juez1_resp = texto_j1
-                    if tipo_j1 == "success": st.caption(status_j1)
-                    else: st.warning(status_j1)
+                    st.caption(status_j1)
                     st.info(juez1_resp)
                 else:
-                    juez1_resp = "NO DISPONIBLE"
-                    st.error(texto_j1)
-            else:
-                juez1_resp = "NO DISPONIBLE"
+                    juez1_resp = "NO DISPONIBLE"; st.error(texto_j1)
+            else: juez1_resp = "NO DISPONIBLE"
 
             st.markdown("⬇️ _Elevando a Corte Suprema..._ ⬇️")
 
-            # CORTE SUPREMA
+            # Corte Suprema
             st.header("🏛️ CORTE SUPREMA")
+            texto_supremo = ""
             try:
                 if openai_key:
                     client = openai.OpenAI(api_key=openai_key)
-                    expediente_completo = f"""
-                    SCOUT (Ataque): {scout_resp}
-                    AUDITOR (Riesgo): {auditor_resp}
-                    JUEZ PRELIMINAR (Opinión): {juez1_resp}
-                    """
-                    
+                    expediente = f"SCOUT: {scout_resp}\nAUDITOR: {auditor_resp}\nJUEZ 1: {juez1_resp}"
                     res_supremo = client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": "ERES LA CORTE SUPREMA. APLICA LA CONSTITUCIÓN ALPHA."}, 
-                            {"role": "user", "content": JUEZ_SUPREMO_PROMPT + "\n\nEXPEDIENTE:\n" + expediente_completo}
+                            {"role": "user", "content": JUEZ_SUPREMO_PROMPT + "\n\nEXPEDIENTE:\n" + expediente}
                         ]
                     )
                     texto_supremo = res_supremo.choices[0].message.content
@@ -420,7 +339,7 @@ elif submit_button:
                     elif "🟢" in texto_supremo: st.success(texto_supremo)
                     else: st.warning(texto_supremo)
 
-                    # REGISTRO
+                    # REGISTRO SESIÓN
                     hora_quito = (datetime.utcnow() - timedelta(hours=5)).strftime("%I:%M %p")
                     veredicto = "⚪"
                     if "🔴" in texto_supremo: veredicto = "🔴 NO OPERAR"
@@ -433,5 +352,50 @@ elif submit_button:
                         "veredicto": veredicto,
                         "sentencia": texto_supremo
                     })
-            except Exception as e:
-                st.error(f"Error Corte Suprema: {str(e)}")
+            except Exception as e: st.error(f"Error Corte Suprema: {str(e)}")
+
+            # --- GENERACIÓN DE ARCHIVO DE DESCARGA ---
+            st.markdown("---")
+            st.subheader("💾 GUARDAR OPERACIÓN")
+            
+            # Formateamos el texto completo para el TXT
+            informe_completo = f"""
+===================================================
+FECHA Y HORA: {(datetime.utcnow() - timedelta(hours=5)).strftime("%Y-%m-%d %I:%M %p")}
+EVENTO: {nombre_partido_detectado}
+===================================================
+
+[RAW DATA]
+{raw_data}
+
+---------------------------------------------------
+[1] REPORTE SCOUT
+{scout_resp}
+
+---------------------------------------------------
+[2] REPORTE AUDITOR
+{auditor_resp}
+
+---------------------------------------------------
+[3] JUEZ PRELIMINAR
+{juez1_resp}
+
+---------------------------------------------------
+[4] CORTE SUPREMA (SENTENCIA FINAL)
+{texto_supremo}
+
+===================================================
+FIN DEL REPORTE
+"""
+            # Nombre del archivo único
+            nombre_archivo = f"ANALISIS_{nombre_partido_detectado.replace(' ', '_')}_{datetime.now().strftime('%H%M')}.txt"
+            
+            # BOTÓN MÁGICO: DESCARGA Y LIMPIA (Callback)
+            st.download_button(
+                label="📥 DESCARGAR BITÁCORA Y LIMPIAR PANTALLA",
+                data=informe_completo,
+                file_name=nombre_archivo,
+                mime="text/plain",
+                on_click=clear_input, # ESTO BORRA EL CAJÓN DE ARRIBA AL HACER CLICK
+                help="Al hacer clic, se descargará el análisis y se limpiará el formulario para el siguiente partido."
+            )
