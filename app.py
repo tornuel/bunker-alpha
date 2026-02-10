@@ -9,7 +9,7 @@ import re
 st.set_page_config(page_title="SISTEMA DE TRADING INSTITUCIONAL", layout="wide")
 
 # Título H3 compacto
-st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V21.0 - BLACK BOX)")
+st.markdown("### 🏛️ SISTEMA DE TRADING INSTITUCIONAL (V21.1 - CLEAN UI)")
 st.markdown("---") 
 
 # --- 2. INICIALIZACIÓN DE MEMORIA Y ESTADO ---
@@ -231,7 +231,9 @@ with st.form(key='bunker_form'):
     # Usamos st.session_state para poder borrar el contenido después
     raw_data = st.text_area("📥 DATOS DEL MERCADO (Ctrl + Enter):", height=200, key="raw_input")
     
-    col_btn1, col_btn2 = st.columns([1, 6])
+    # AJUSTE DE COLUMNAS PARA QUE LOS BOTONES NO SE MONTEN
+    # [2, 5] da más espacio al botón de la izquierda (Ejecutar)
+    col_btn1, col_btn2 = st.columns([2, 5])
     with col_btn1:
         submit_button = st.form_submit_button("⚡ EJECUTAR")
     with col_btn2:
@@ -265,7 +267,10 @@ elif submit_button:
                     try:
                         for linea in scout_resp.split('\n'):
                             if "OBJETIVO:" in linea:
-                                nombre_partido_detectado = linea.replace("OBJETIVO:", "").strip()
+                                # LIMPIEZA AGRESIVA DEL NOMBRE
+                                raw_name = linea.replace("OBJETIVO:", "").strip()
+                                # Regex para quitar "1. ", guiones bajos raros al inicio, etc.
+                                nombre_partido_detectado = re.sub(r'^[\d\.\-_ ]+', '', raw_name)
                                 break
                     except: pass
                 else: st.error(texto)
@@ -387,8 +392,12 @@ EVENTO: {nombre_partido_detectado}
 ===================================================
 FIN DEL REPORTE
 """
-            # Nombre del archivo único
-            nombre_archivo = f"ANALISIS_{nombre_partido_detectado.replace(' ', '_')}_{datetime.now().strftime('%H%M')}.txt"
+            # Nombre del archivo limpio (sin numeros raros ni timestamp)
+            # Limpiamos caracteres no válidos para nombres de archivo
+            clean_name = re.sub(r'[^\w\s-]', '', nombre_partido_detectado)
+            clean_name = clean_name.replace(' ', '_')
+            
+            nombre_archivo = f"{clean_name}.txt"
             
             # BOTÓN MÁGICO: DESCARGA Y LIMPIA (Callback)
             st.download_button(
